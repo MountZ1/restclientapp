@@ -52,5 +52,20 @@ func StartColection() string {
 	return b.String()
 }
 
+func GetCollectionItems() []os.DirEntry {
+	files, err := Initialize()
+	if err != nil {
+		return []os.DirEntry{}
+	}
+
+	var filtered []os.DirEntry
+	for _, f := range files {
+		if f.IsDir() || strings.ToLower(filepath.Ext(f.Name())) == ".json" {
+			filtered = append(filtered, f)
+		}
+	}
+	return filtered
+}
+
 func read() {
 }

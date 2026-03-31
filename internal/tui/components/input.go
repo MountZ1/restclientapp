@@ -1,25 +1,32 @@
 package components
 
-import tea "github.com/charmbracelet/bubbletea"
+import (
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
+)
 
 type InputModel struct {
-	Placeholder string
-	Focused     bool
+	input   textinput.Model
+	Focused bool
 }
 
 func Input(placeholder string) Component {
+	ti := textinput.New()
+	ti.Placeholder = placeholder
+
 	return &InputModel{
-		Placeholder: placeholder,
-		Focused:     false,
+		input: ti,
 	}
 }
 
 func (i *InputModel) Focus() {
 	i.Focused = true
+	i.input.Focus()
 }
 
 func (i *InputModel) Blur() {
 	i.Focused = false
+	i.input.Blur()
 }
 
 func (i *InputModel) IsFocus() bool {
@@ -30,19 +37,15 @@ func (i *InputModel) Update(msg tea.Msg) (Component, tea.Cmd) {
 	if !i.Focused {
 		return i, nil
 	}
-
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "enter", " ":
-			// Button clicked
-			// TODO: Trigger action
-		}
-	}
-
-	return i, nil
+	var cmd tea.Cmd
+	i.input, cmd = i.input.Update(msg)
+	return i, cmd
 }
 
 func (i *InputModel) View() string {
-	return ""
+	return i.input.View()
+}
+
+func (i *InputModel) Value() string {
+	return i.input.Value()
 }

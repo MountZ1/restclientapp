@@ -83,3 +83,26 @@ func result(width, height int) string {
 
 	return lipgloss.JoinVertical(lipgloss.Top, topBorder, content)
 }
+
+func renderDialog(content string) string {
+	borderColor := lipgloss.Color("#7D56F4")
+	title := "[ New ]"
+	remainWidth := 32 - lipgloss.Width(title)
+	borderStyle := lipgloss.NewStyle().Foreground(borderColor)
+	leftBorder := borderStyle.Render("╭─")
+	rightBorder := borderStyle.Render(strings.Repeat("─", remainWidth) + "╮")
+	topBorder := lipgloss.JoinHorizontal(lipgloss.Left, leftBorder, title, rightBorder)
+
+	contentStyle := lipgloss.NewStyle().
+		Width(30).
+		Height(8).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(borderColor).
+		BorderTop(false).
+		BorderLeft(true).
+		BorderRight(true).
+		BorderBottom(true).
+		PaddingLeft(1)
+
+	return lipgloss.JoinVertical(lipgloss.Left, topBorder, contentStyle.Render(content))
+}
