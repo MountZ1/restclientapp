@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func Initialize() ([]os.DirEntry, error) {
+func Initialize() (string, []os.DirEntry, error) {
 	exepath, err := os.Executable()
 	if err != nil {
 		panic(err)
@@ -21,21 +21,21 @@ func Initialize() ([]os.DirEntry, error) {
 	if _, err := os.Stat(dataPath); os.IsNotExist(err) {
 		err = os.Mkdir(dataPath, 0755)
 		if err != nil {
-			return nil, err
+			return "", nil, err
 		}
 	}
 
 	files, err := os.ReadDir(dataPath)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
-	return files, nil
+	return dataPath, files, nil
 }
 
 func StartColection() string {
 	var b strings.Builder
-	files, err := Initialize()
+	_, files, err := Initialize()
 	if err != nil {
 		// panic(err)
 		return "something went wrong, please contact customer service"
@@ -53,7 +53,7 @@ func StartColection() string {
 }
 
 func GetCollectionItems() []os.DirEntry {
-	files, err := Initialize()
+	_, files, err := Initialize()
 	if err != nil {
 		return []os.DirEntry{}
 	}
