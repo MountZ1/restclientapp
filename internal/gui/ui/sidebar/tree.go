@@ -98,6 +98,7 @@ func tree(cnv fyne.Canvas) (*tappableTree, string) {
 		}
 
 		if branch {
+			// need to check the icon
 			btn.OnTapped = func() {
 				showSidebarMenu(cnv, btn.Position(), uid, "folder")
 			}
