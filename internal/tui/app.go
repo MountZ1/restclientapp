@@ -17,7 +17,10 @@ type model struct {
 }
 
 func (m model) Init() tea.Cmd {
-	return nil
+	return tea.Batch(
+		m.sidebar.Init(),
+		tea.EnterAltScreen,
+	)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -30,10 +33,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "up":
 			m.counter++
+		case "S":
+			m.sidebar.Active = !m.sidebar.Active
 		}
+
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
+		m.width = msg.Width + 2
+		m.height = msg.Height + 2
 	}
 
 	m.sidebar, cmd = m.sidebar.Update(msg)
@@ -44,15 +50,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	return lipgloss.JoinHorizontal(
+	sidebar := m.sidebar.View()
+	right := lipgloss.JoinVertical(
 		lipgloss.Top,
-		m.sidebar.View(),
-		lipgloss.JoinVertical(
-			lipgloss.Top,
-			m.request.View(),
-			m.response.View(),
-		),
+		m.request.View(),
+		m.response.View(),
 	)
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, sidebar, right)
 }
 
 func Run() error {
@@ -61,6 +66,7 @@ func Run() error {
 			sidebar: ui.NewSidebar(30, 20),
 		},
 		tea.WithAltScreen(),
+		tea.WithMouseCellMotion(),
 	)
 	_, err := tea.Run()
 

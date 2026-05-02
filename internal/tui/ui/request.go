@@ -22,7 +22,7 @@ func (m RequestModel) Update(msg tea.Msg) (RequestModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		sidebarWidth := msg.Width / 4
 		m.width = msg.Width - sidebarWidth
-		m.height = msg.Height / 2
+		m.height = msg.Height/2 - 1
 	}
 
 	return m, nil
@@ -31,7 +31,7 @@ func (m RequestModel) Update(msg tea.Msg) (RequestModel, tea.Cmd) {
 func (m RequestModel) View() string {
 	return lipgloss.NewStyle().
 		Width(m.width - 2).
-		Height(m.height - 2).
+		Height(m.height).
 		Border(lipgloss.RoundedBorder()).
 		Render("Request Content")
 }

@@ -22,7 +22,7 @@ func (m ResponseModel) Update(msg tea.Msg) (ResponseModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		sidebarWidth := msg.Width / 4
 		m.width = msg.Width - sidebarWidth
-		m.height = msg.Height / 2
+		m.height = msg.Height/2 - 2
 	}
 
 	return m, nil
@@ -31,7 +31,7 @@ func (m ResponseModel) Update(msg tea.Msg) (ResponseModel, tea.Cmd) {
 func (m ResponseModel) View() string {
 	return lipgloss.NewStyle().
 		Width(m.width - 2).
-		Height(m.height - 2).
+		Height(m.height).
 		Border(lipgloss.RoundedBorder()).
 		Render("Response Content")
 }
