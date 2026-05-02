@@ -1,13 +1,13 @@
 package main
 
 import (
+	"log"
 	"restclient/internal/tui"
 )
 
 func main() {
-	tui.Run()
-	/*err := tui.Run()
+	err := tui.Run()
 	if err != nil {
 		log.Fatal(err)
-	}*/
+	}
 }

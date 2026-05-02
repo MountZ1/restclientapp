@@ -7,17 +7,67 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-func showSidebarMenu(canvas fyne.Canvas, pos fyne.Position, uid string, tipe string) {
-	addRequest := fyne.NewMenuItem("Add request", func() {
-		fmt.Println("add request")
-	})
-	addCollection := fyne.NewMenuItem("Add collection", func() {
-		fmt.Println("add collection")
-	})
-	deleteAll := fyne.NewMenuItem("Delete all", func() {
-		fmt.Println("delete all")
-	})
+type Menu struct {
+	label   string
+	action  func()
+	showFor []string
+}
 
-	menu := fyne.NewMenu("", addRequest, addCollection, deleteAll)
+func showSidebarMenu(canvas fyne.Canvas, pos fyne.Position, uid string, tipe string) {
+	menus := []Menu{
+		{
+			label: "Add Request",
+			action: func() {
+				fmt.Println("Add Request")
+			},
+			showFor: []string{"folder", ""},
+		},
+		{
+			label: "Add Collecction",
+			action: func() {
+				fmt.Println("Add Collection")
+			},
+			showFor: []string{"folder", ""},
+		},
+		{
+			label: "Delete Request",
+			action: func() {
+				fmt.Println("Delete Request")
+			},
+			showFor: []string{"file"},
+		},
+		{
+			label: "Delete Collection",
+			action: func() {
+				fmt.Println("Delete Collection")
+			},
+			showFor: []string{"folder"},
+		},
+		{
+			label: "Duplicate",
+			action: func() {
+				fmt.Println("Duplicate Collection")
+			},
+			showFor: []string{"folder", "file"},
+		},
+		{
+			label: "Rename",
+			action: func() {
+				fmt.Println("Rename Collection")
+			},
+			showFor: []string{"folder", "file"},
+		},
+	}
+
+	var menuCollection []*fyne.MenuItem
+	for _, menu := range menus {
+		for _, permission := range menu.showFor {
+			if permission == tipe {
+				menuCollection = append(menuCollection, fyne.NewMenuItem(menu.label, menu.action))
+			}
+		}
+	}
+
+	menu := fyne.NewMenu("", menuCollection...)
 	widget.ShowPopUpMenuAtPosition(menu, canvas, pos)
 }

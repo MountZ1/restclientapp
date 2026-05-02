@@ -2,7 +2,7 @@ package layout
 
 import (
 	"restclient/internal/collections"
-	"restclient/internal/tui/components"
+	"restclient/internal/tui_2/components"
 )
 
 func MainLayout() string {

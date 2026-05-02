@@ -1,9 +1,9 @@
-package tui
+package tui_2
 
 import (
 	"restclient/internal/collections"
 	services "restclient/internal/services/fs"
-	"restclient/internal/tui/components"
+	"restclient/internal/tui_2/components"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"

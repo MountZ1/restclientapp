@@ -27,5 +27,8 @@ func (m myTheme) Font(style fyne.TextStyle) fyne.Resource {
 }
 
 func (m myTheme) Size(name fyne.ThemeSizeName) float32 {
+	if name == theme.SizeNameInputBorder {
+		return 0
+	}
 	return theme.DefaultTheme().Size(name)
 }

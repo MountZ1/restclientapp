@@ -100,7 +100,7 @@ func tree(cnv fyne.Canvas) (*tappableTree, string) {
 		if branch {
 			// need to check the icon
 			btn.OnTapped = func() {
-				showSidebarMenu(cnv, btn.Position(), uid, "folder")
+				showSidebarMenu(cnv, fyne.CurrentApp().Driver().AbsolutePositionForObject(btn), uid, "folder")
 			}
 
 			if openFolders[uid] {
@@ -110,7 +110,7 @@ func tree(cnv fyne.Canvas) (*tappableTree, string) {
 			}
 		} else {
 			btn.OnTapped = func() {
-				showSidebarMenu(cnv, btn.Position(), uid, "file")
+				showSidebarMenu(cnv, fyne.CurrentApp().Driver().AbsolutePositionForObject(btn), uid, "file")
 			}
 			icon.SetResource(theme.FileIcon())
 		}
