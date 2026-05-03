@@ -32,6 +32,11 @@ type FileItem struct {
 	expanded bool
 }
 
+type OpenDialogMsg struct {
+	Title   string
+	Message string
+}
+
 type collection []FileItem
 
 func readDir(path string) ([]FileItem, error) {
@@ -213,22 +218,30 @@ func (m SidebarModel) Update(msg tea.Msg) (SidebarModel, tea.Cmd) {
 		}
 		flat := flattenItems(m.folders)
 		switch msg.String() {
-		case "j", "down":
+		case "down":
 			if m.selected < len(flat)-1 {
 				m.selected++
 			}
-		case "k", "up":
+		case "up":
 			if m.selected > 0 {
 				m.selected--
 			}
-		case "enter", " ":
+		case "enter":
 			if m.selected < len(flat) {
 				item := flat[m.selected]
 				if item.isDir {
-					item.expanded = !item.expanded // toggle
+					item.expanded = !item.expanded
+				}
+			}
+		case "a":
+			return m, func() tea.Msg {
+				return OpenDialogMsg{
+					Title:   "New Dialog",
+					Message: "this is message",
 				}
 			}
 		}
+
 		return m, nil
 	}
 
