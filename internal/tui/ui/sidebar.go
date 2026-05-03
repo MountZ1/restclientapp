@@ -4,13 +4,14 @@ import (
 	"os"
 	"path/filepath"
 	services "restclient/internal/services/fs"
+	"restclient/internal/tui/constant"
+	"restclient/internal/tui/helper"
 	"restclient/internal/tui/styles"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/tree"
 )
 
 type SidebarModel struct {
@@ -73,41 +74,91 @@ func loadCollection() tea.Cmd {
 	}
 }
 
-func buildTree(items []FileItem, flat []*FileItem, selected int, width int) *tree.Tree {
-	t := tree.New().
-		Enumerator(func(children tree.Children, index int) string {
-			return ""
-		}).
-		Indenter(func(children tree.Children, index int) string {
-			return ""
-		})
+func buildLines(items []FileItem, flat []*FileItem, selected int, width int, active bool, indent int) []string {
+	var lines []string
 
 	for i := range items {
-		// cek if the item selected
 		isSelected := len(flat) > selected && flat[selected] == &items[i]
 
-		name := strings.TrimSuffix(items[i].name, ".json")
-		if isSelected {
-			name = lipgloss.NewStyle().
-				Width(width - 4).
-				Background(lipgloss.Color("62")).
-				Foreground(lipgloss.Color("230")).
-				Render(name)
+		var prefix string
+		var methodColor lipgloss.Color
+		var method string
+		displayName := strings.TrimSuffix(items[i].name, ".json")
+
+		if items[i].isDir {
+			if items[i].expanded {
+				prefix = constant.IconFolderOpen + " "
+			} else {
+				prefix = constant.IconFolder + " "
+			}
+		} else {
+			var found bool
+			method, _, found = strings.Cut(items[i].name, "-")
+			if !found {
+				method = "???"
+			}
+			method = strings.ToUpper(method)
+			methodColor = styles.ColorUnknown
+			for _, r := range constant.RequestCollection {
+				if r.Name == method {
+					methodColor = r.Color
+					break
+				}
+			}
+			_, after, found := strings.Cut(displayName, "-")
+			if found {
+				displayName = after
+			}
 		}
 
-		if items[i].isDir && items[i].expanded && len(items[i].children) > 0 {
-			node := buildTree(items[i].children, flat, selected, width).
-				Root(name).
-				Enumerator(tree.DefaultEnumerator).
-				Indenter(func(children tree.Children, index int) string {
-					return "  "
-				})
-			t.Child(node)
+		var line string
+		indentStr := strings.Repeat(" ", indent)
+
+		if isSelected {
+			var bg, fg lipgloss.Color
+			if active {
+				bg = lipgloss.Color("62")
+				fg = lipgloss.Color("230")
+			} else {
+				bg = lipgloss.Color("240")
+				fg = lipgloss.Color("250")
+			}
+
+			var content string
+			if items[i].isDir {
+				content = indentStr + prefix + displayName
+			} else {
+				content = indentStr + "[" + method + "]" + " " + displayName
+			}
+
+			line = " " + lipgloss.NewStyle().
+				Background(bg).
+				Foreground(fg).
+				PaddingLeft(1).
+				PaddingRight(1).
+				Width(width-4). // kurangi margin kiri + padding
+				Render(content)
+
 		} else {
-			t.Child(name)
+			if items[i].isDir {
+				line = "  " + indentStr + prefix + displayName // sejajar dengan selected
+			} else {
+				tag := lipgloss.NewStyle().
+					Foreground(methodColor).
+					Render("[" + method + "]")
+				line = "  " + indentStr + tag + " " + displayName
+			}
+		}
+
+		lines = append(lines, line)
+
+		if items[i].isDir && items[i].expanded && len(items[i].children) > 0 {
+			childLines := buildLines(items[i].children, flat, selected, width, active, indent+2)
+			lines = append(lines, childLines...)
 		}
 	}
-	return t
+
+	return lines
 }
 
 func flattenItems(items []FileItem) []*FileItem {
@@ -193,20 +244,14 @@ func (m SidebarModel) View() string {
 	content := m.spinner.View() + " Loading..."
 	if !m.loading {
 		flat := flattenItems(m.folders)
-		t := buildTree(m.folders, flat, m.selected, m.width)
-		content = t.String()
+		lines := buildLines(m.folders, flat, m.selected, m.width, m.Active, 0)
+		content = strings.Join(lines, "\n")
 	}
 
 	borderColor := styles.BorderNormal
-
 	if m.Active {
 		borderColor = styles.BorderActive
 	}
 
-	return lipgloss.NewStyle().
-		Width(m.width - 2).
-		Height(m.height - 2).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(borderColor).
-		Render(content)
+	return helper.RenderWithTitle(content, "[ Collections ]", m.width, m.height-2, borderColor)
 }

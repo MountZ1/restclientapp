@@ -1,13 +1,16 @@
 package ui
 
 import (
+	"restclient/internal/tui/helper"
+	"restclient/internal/tui/styles"
+
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 type ResponseModel struct {
 	width  int
 	height int
+	Active bool
 }
 
 func NewResponse(width, height int) ResponseModel {
@@ -22,16 +25,23 @@ func (m ResponseModel) Update(msg tea.Msg) (ResponseModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		sidebarWidth := msg.Width / 4
 		m.width = msg.Width - sidebarWidth
-		m.height = msg.Height/2 - 2
+		m.height = msg.Height/2 - 1
 	}
 
 	return m, nil
 }
 
 func (m ResponseModel) View() string {
-	return lipgloss.NewStyle().
-		Width(m.width - 2).
-		Height(m.height).
-		Border(lipgloss.RoundedBorder()).
-		Render("Response Content")
+	borderColor := styles.BorderNormal
+	if m.Active {
+		borderColor = styles.BorderActive
+	}
+
+	return helper.RenderWithTitle(
+		"Response Content",
+		"[ Response ]",
+		m.width,
+		m.height,
+		borderColor,
+	)
 }

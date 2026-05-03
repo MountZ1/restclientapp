@@ -33,8 +33,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "up":
 			m.counter++
-		case "S":
-			m.sidebar.Active = !m.sidebar.Active
+		case "ctrl+s":
+			m.request.Active = false
+			m.response.Active = false
+			m.sidebar.Active = true
+		case "ctrl+r":
+			m.sidebar.Active = false
+			m.response.Active = false
+			m.request.Active = true
+		case "ctrl+d":
+			m.sidebar.Active = false
+			m.request.Active = false
+			m.response.Active = true
 		}
 
 	case tea.WindowSizeMsg:
