@@ -4,7 +4,7 @@ import (
 	"restclient/internal/tui/helper"
 	"restclient/internal/tui/styles"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 type RequestModel struct {
@@ -25,7 +25,7 @@ func (m RequestModel) Update(msg tea.Msg) (RequestModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		sidebarWidth := msg.Width / 4
 		m.width = msg.Width - sidebarWidth
-		m.height = msg.Height/2 - 2
+		m.height = msg.Height / 2
 	}
 
 	return m, nil
@@ -38,7 +38,7 @@ func (m RequestModel) View() string {
 	}
 	return helper.RenderWithTitle(
 		"Request Content",
-		"[ Request ]",
+		" Request ",
 		m.width,
 		m.height,
 		borderColor,

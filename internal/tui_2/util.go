@@ -3,7 +3,7 @@ package tui_2
 import (
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 func countDimentionLength(len int, setLen int) int {

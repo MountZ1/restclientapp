@@ -1,17 +1,20 @@
 package ui
 
 import (
+	"image/color"
 	"os"
 	"path/filepath"
 	services "restclient/internal/services/fs"
 	"restclient/internal/tui/constant"
 	"restclient/internal/tui/helper"
 	"restclient/internal/tui/styles"
+	"restclient/internal/tui/ui/components"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	lv2 "charm.land/lipgloss/v2"
 )
 
 type SidebarModel struct {
@@ -23,6 +26,7 @@ type SidebarModel struct {
 	lastKey  string
 	width    int
 	height   int
+	button   components.ButtonModel
 }
 
 type FileItem struct {
@@ -86,7 +90,7 @@ func buildLines(items []FileItem, flat []*FileItem, selected int, width int, act
 		isSelected := len(flat) > selected && flat[selected] == &items[i]
 
 		var prefix string
-		var methodColor lipgloss.Color
+		var methodColor color.Color
 		var method string
 		displayName := strings.TrimSuffix(items[i].name, ".json")
 
@@ -120,7 +124,7 @@ func buildLines(items []FileItem, flat []*FileItem, selected int, width int, act
 		indentStr := strings.Repeat(" ", indent)
 
 		if isSelected {
-			var bg, fg lipgloss.Color
+			var bg, fg color.Color
 			if active {
 				bg = lipgloss.Color("62")
 				fg = lipgloss.Color("230")
@@ -188,6 +192,7 @@ func NewSidebar(width, height int) SidebarModel {
 		loading: true,
 		width:   width,
 		height:  height,
+		button:  components.NewButton("New Request", width, 1),
 	}
 }
 
@@ -254,17 +259,23 @@ func (m SidebarModel) Update(msg tea.Msg) (SidebarModel, tea.Cmd) {
 }
 
 func (m SidebarModel) View() string {
-	content := m.spinner.View() + " Loading..."
-	if !m.loading {
-		flat := flattenItems(m.folders)
-		lines := buildLines(m.folders, flat, m.selected, m.width, m.Active, 0)
-		content = strings.Join(lines, "\n")
-	}
+	flat := flattenItems(m.folders)
+	lines := buildLines(m.folders, flat, m.selected, m.width, m.Active, 0)
+	listContent := strings.Join(lines, "\n")
 
 	borderColor := styles.BorderNormal
 	if m.Active {
 		borderColor = styles.BorderActive
 	}
 
-	return helper.RenderWithTitle(content, "[ Collections ]", m.width, m.height-2, borderColor)
+	btnLayer := lv2.NewLayer(m.button.View()).X(1).Y(m.height - 3)
+
+	return helper.RenderWithTitle(
+		listContent,
+		"Collections",
+		m.width,
+		m.height,
+		borderColor,
+		btnLayer,
+	)
 }

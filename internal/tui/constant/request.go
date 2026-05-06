@@ -1,15 +1,14 @@
 package constant
 
 import (
+	"image/color"
 	"restclient/internal/tui/styles"
-
-	"github.com/charmbracelet/lipgloss"
 )
 
 type Request struct {
 	Name   string
-	Color  lipgloss.Color
-	Active lipgloss.Color
+	Color  color.Color
+	Active color.Color
 }
 
 var RequestCollection = []Request{

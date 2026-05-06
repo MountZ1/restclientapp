@@ -4,16 +4,17 @@ import (
 	"fmt"
 	"os"
 	"restclient/internal/tui/ui"
+	"restclient/internal/tui/ui/components"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 type model struct {
 	sidebar  ui.SidebarModel
 	request  ui.RequestModel
 	response ui.ResponseModel
-	dialog   *ui.DialogModel
+	dialog   *components.DialogModel
 	counter  int
 	height   int
 	width    int
@@ -22,7 +23,6 @@ type model struct {
 func (m model) Init() tea.Cmd {
 	return tea.Batch(
 		m.sidebar.Init(),
-		tea.EnterAltScreen,
 	)
 }
 
@@ -63,7 +63,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 
 	case ui.OpenDialogMsg:
-		dialog := ui.NewDialog(msg.Title, msg.Message)
+		dialog := components.NewDialog(msg.Title, msg.Message)
 		m.dialog = &dialog
 	}
 
@@ -79,12 +79,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m model) View() string {
+func (m model) View() tea.View {
 	sidebar := m.sidebar.View()
 	right := lipgloss.JoinVertical(lipgloss.Top,
 		m.request.View(),
 		m.response.View(),
 	)
+	var v tea.View
 	main := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, right)
 
 	if m.dialog != nil {
@@ -92,25 +93,31 @@ func (m model) View() string {
 		h := lipgloss.Height(main)
 		os.WriteFile("debug.txt", []byte(fmt.Sprintf("main w:%d h:%d, screen w:%d h:%d", w, h, m.width, m.height)), 0644)
 
-		return lipgloss.Place(
+		v = tea.NewView(lipgloss.Place(
 			w, h,
 			lipgloss.Center, lipgloss.Center,
 			m.dialog.View(),
-		)
+		))
+
+		v.AltScreen = true
+		v.MouseMode = tea.MouseModeCellMotion
+
+		return v
 	}
 
-	return main
+	v = tea.NewView(main)
+	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
+
+	return v
 }
 
 func Run() error {
-	tea := tea.NewProgram(
+	p := tea.NewProgram(
 		model{
 			sidebar: ui.NewSidebar(30, 20),
 		},
-		tea.WithAltScreen(),
-		tea.WithMouseCellMotion(),
 	)
-	_, err := tea.Run()
-
+	_, err := p.Run()
 	return err
 }
