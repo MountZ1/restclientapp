@@ -8,22 +8,7 @@ import (
 )
 
 func Initialize() (string, []os.DirEntry, error) {
-	exepath, err := os.Executable()
-	if err != nil {
-		panic(err)
-	}
-
-	exeDir := filepath.Dir(exepath)
-	dataPath := filepath.Join(exeDir, "data")
-
-	// files, err := os.ReadDir(dataPath)
-
-	if _, err := os.Stat(dataPath); os.IsNotExist(err) {
-		err = os.Mkdir(dataPath, 0755)
-		if err != nil {
-			return "", nil, err
-		}
-	}
+	dataPath := Path()
 
 	files, err := os.ReadDir(dataPath)
 	if err != nil {
@@ -65,7 +50,4 @@ func GetCollectionItems() []os.DirEntry {
 		}
 	}
 	return filtered
-}
-
-func read() {
 }
