@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	services "restclient/internal/services/fs"
 	"restclient/internal/services/logger"
 	"restclient/internal/tui/custommodel"
@@ -39,17 +40,37 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.dialog = nil
 				return m, nil
 			}
+
 		case dialog.DialogSubmitMsg:
 			m.dialog = nil
-			err := services.CreateRequestCollection(services.Create{
-				Location: msg.Location,
-				Type:     msg.Type,
-				Name:     msg.Name,
-			})
-			if err != nil {
-				logger.Error("Failed to create %s: %v", msg.Type, err)
+			var err error
+
+			switch msg.FormType {
+			case "create":
+				err = services.CreateRequestCollection(services.Create{
+					Location: msg.Location,
+					Type:     msg.Type,
+					Name:     msg.Name,
+				})
+
+			case "rename":
+				err = services.RenameRequestOrCollection(msg.Location, msg.Name)
+
+			case "destroy":
+				if msg.Name != "y" && msg.Name != "n" {
+					err = fmt.Errorf("invalid input: %s", msg.Name)
+				} else if msg.Name == "y" {
+					err = services.DestroyRequestOrCollection(msg.Location)
+				}
+
 			}
+
+			if err != nil {
+				logger.Error("Failed to %s %s: %v", msg.FormType, msg.Type, err, msg.Location)
+			}
+
 			return m, components.LoadCollection()
+
 		case tea.WindowSizeMsg:
 			m.width = msg.Width
 			m.height = msg.Height
@@ -98,6 +119,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			msg.Message,
 			msg.Location,
 			msg.Content,
+			msg.DialogType,
 		)
 		m.dialog = &dialog
 		return m, m.dialog.Init()
@@ -106,18 +128,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.request.Active = msg.Target == "request"
 		m.response.Active = msg.Target == "response"
 
-	case dialog.DialogSubmitMsg:
-		m.dialog = nil
-		err := services.CreateRequestCollection(services.Create{
-			Location: msg.Location,
-			Type:     msg.Type,
-			Name:     msg.Name,
-		})
-		if err != nil {
-			logger.Error("Failed to create %s: %v", msg.Type, err, msg.Location)
-		}
-
-		return m, components.LoadCollection()
 	}
 
 	m.sidebar, cmd = m.sidebar.Update(msg)

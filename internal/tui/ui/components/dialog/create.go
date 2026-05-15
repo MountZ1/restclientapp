@@ -71,20 +71,40 @@ func (d *DialogModel) CreateForm() *huh.Form {
 func (d *DialogModel) RenameForm() *huh.Form {
 	myTheme := huh.ThemeFunc(theme)
 
+	title := "Name"
+	switch formTipe {
+	case "collection":
+		title = "New name collection"
+	case "request":
+		title = "New name request"
+	}
+
 	return huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
-				TitleFunc(func() string {
-					switch formTipe {
-					case "collection":
-						return "Name collection"
-					case "request":
-						return "Name request"
-					default:
-						return "Name"
-					}
-				}, &formTipe).
+				Title(title).
 				Placeholder("e.g. My Collection").
+				Value(&formName),
+		),
+	).WithTheme(myTheme).WithWidth(44)
+}
+
+func (d *DialogModel) DestroyForm() *huh.Form {
+	myTheme := huh.ThemeFunc(theme)
+
+	title := "Name"
+	switch formTipe {
+	case "collection":
+		title = "Are you sure to delete this collection"
+	case "request":
+		title = "Are you sure to delete this request"
+	}
+
+	return huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title(title).
+				Placeholder("y/n").
 				Value(&formName),
 		),
 	).WithTheme(myTheme).WithWidth(44)

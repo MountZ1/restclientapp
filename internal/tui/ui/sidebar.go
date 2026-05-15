@@ -2,6 +2,8 @@ package ui
 
 import (
 	"path/filepath"
+	services "restclient/internal/services/fs"
+	"restclient/internal/services/logger"
 	"restclient/internal/tui/helper"
 	"restclient/internal/tui/styles"
 	"restclient/internal/tui/ui/components"
@@ -9,31 +11,39 @@ import (
 	"strings"
 
 	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	lv2 "charm.land/lipgloss/v2"
 )
 
 type SidebarModel struct {
-	Active     bool
-	folders    []components.FileItem
-	spinner    spinner.Model
-	selected   int
-	loading    bool
-	Width      int
-	height     int
-	button     components.ButtonModel
-	choiceType string
+	Active        bool
+	folders       []components.FileItem
+	spinner       spinner.Model
+	selected      int
+	loading       bool
+	Width         int
+	height        int
+	refreshButton components.ButtonModel
+	button        components.ButtonModel
+	vp            viewport.Model
+	choiceType    string
 }
 
 type OpenDialogMsg struct {
-	Title    string
-	Message  string
-	Location string
-	Content  any
+	Title      string
+	Message    string
+	Location   string
+	Content    any
+	DialogType string
 }
 
 func NewSidebar(width, height int) SidebarModel {
+	vp := viewport.New()
+	vp.SetHeight(height - 5)
+	vp.SetWidth(width - 4)
+
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 
@@ -42,7 +52,9 @@ func NewSidebar(width, height int) SidebarModel {
 		loading: true,
 		Width:   width,
 		height:  height,
-		button:  components.NewButton("Create Request or Collection", width-4, 1),
+		// refreshButton: components.NewButton("Refresh Collection", width-4, 1),
+		button: components.NewButton("Create Request or Collection", width-4, 1),
+		vp:     vp,
 	}
 }
 
@@ -60,12 +72,17 @@ func (m SidebarModel) Update(msg tea.Msg) (SidebarModel, tea.Cmd) {
 	case components.Collection:
 		m.loading = false
 		m.folders = msg
+		flat := components.FlattenItems(m.folders)
+		lines := components.BuildLines(m.folders, flat, m.selected, m.Width, m.Active, 0)
+		m.vp.SetContent(strings.Join(lines, "\n"))
 		return m, nil
 
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width / 4
 		m.height = msg.Height
 		m.button = components.NewButton(m.button.Text, m.Width-4, 1)
+		m.vp.SetWidth(m.Width - 4)
+		m.vp.SetHeight(m.height - 5)
 		return m, nil
 
 	case tea.MouseClickMsg:
@@ -74,13 +91,15 @@ func (m SidebarModel) Update(msg tea.Msg) (SidebarModel, tea.Cmd) {
 
 		if mouse.Y == m.height-3 && mouse.X >= 2 && mouse.X <= 2+btnWidth {
 			return m, func() tea.Msg {
+				dialog.ResetForm("")
 				d := dialog.DialogModel{}
 				form := d.CreateForm()
 				return OpenDialogMsg{
-					Title:    "Create Request or Collection",
-					Message:  "",
-					Location: "",
-					Content:  form,
+					Title:      "Create Request or Collection",
+					Message:    "",
+					Location:   "",
+					Content:    form,
+					DialogType: "create",
 				}
 			}
 		}
@@ -95,10 +114,17 @@ func (m SidebarModel) Update(msg tea.Msg) (SidebarModel, tea.Cmd) {
 			if m.selected < len(flat)-1 {
 				m.selected++
 			}
+			lines := components.BuildLines(m.folders, flat, m.selected, m.Width, m.Active, 0)
+			m.vp.SetContent(strings.Join(lines, "\n"))
+			m.vp.SetYOffset(m.selected - m.vp.Height()/2)
+
 		case "up":
 			if m.selected > 0 {
 				m.selected--
 			}
+			lines := components.BuildLines(m.folders, flat, m.selected, m.Width, m.Active, 0)
+			m.vp.SetContent(strings.Join(lines, "\n"))
+			m.vp.SetYOffset(m.selected - m.vp.Height()/2)
 		case "enter":
 			if m.selected < len(flat) {
 				item := flat[m.selected]
@@ -113,20 +139,79 @@ func (m SidebarModel) Update(msg tea.Msg) (SidebarModel, tea.Cmd) {
 				if item.IsDir() {
 					location = item.FilePath()
 				} else {
-					// file ada di dalam folder, ambil parent path
 					location = filepath.Dir(item.FilePath())
 				}
 			}
 			return m, func() tea.Msg {
+				dialog.ResetForm("")
 				d := dialog.DialogModel{}
 				form := d.CreateForm()
 				return OpenDialogMsg{
-					Title:    "Create Request or Collection",
-					Message:  "",
-					Location: location,
-					Content:  form,
+					Title:      "Create Request or Collection",
+					Message:    "",
+					Location:   location,
+					Content:    form,
+					DialogType: "create",
 				}
 			}
+		case "r":
+			var item *components.FileItem
+			if m.selected < len(flat) {
+				item = flat[m.selected]
+			}
+
+			return m, func() tea.Msg {
+				tipe := "request"
+				if item.IsDir() {
+					tipe = "collection"
+				}
+				dialog.ResetForm(tipe)
+				name := getCollectionOrRequestName(item.FilePath(), item.IsDir())
+				d := dialog.DialogModel{}
+				form := d.RenameForm()
+				return OpenDialogMsg{
+					Title:      "Rename " + name,
+					Message:    "",
+					Location:   item.FilePath(),
+					Content:    form,
+					DialogType: "rename",
+				}
+			}
+		case "d":
+			var item *components.FileItem
+			if m.selected < len(flat) {
+				item = flat[m.selected]
+			}
+
+			return m, func() tea.Msg {
+				tipe := "request"
+				if item.IsDir() {
+					tipe = "collection"
+				}
+				dialog.ResetForm(tipe)
+				name := getCollectionOrRequestName(item.FilePath(), item.IsDir())
+				d := dialog.DialogModel{}
+				form := d.DestroyForm()
+				return OpenDialogMsg{
+					Title:      "Destroy " + name,
+					Message:    "",
+					Location:   item.FilePath(),
+					Content:    form,
+					DialogType: "destroy",
+				}
+			}
+
+		case "c":
+			var item *components.FileItem
+			if m.selected < len(flat) {
+				item = flat[m.selected]
+			}
+			err := services.DuplicateRequestOrCollection(item.FilePath(), item.IsDir())
+			if err != nil {
+				logger.Error("Failed to duplicate this item : %s", err)
+			}
+
+			return m, components.LoadCollection()
 		}
 
 		return m, nil
@@ -137,14 +222,12 @@ func (m SidebarModel) Update(msg tea.Msg) (SidebarModel, tea.Cmd) {
 		return m, cmd
 	}
 
+	m.vp, cmd = m.vp.Update(msg)
+
 	return m, cmd
 }
 
 func (m SidebarModel) View() string {
-	flat := components.FlattenItems(m.folders)
-	lines := components.BuildLines(m.folders, flat, m.selected, m.Width, m.Active, 0)
-	listContent := strings.Join(lines, "\n")
-
 	borderColor := styles.BorderNormal
 	if m.Active {
 		borderColor = styles.BorderActive
@@ -155,7 +238,7 @@ func (m SidebarModel) View() string {
 	helpLayer := lv2.NewLayer(helpStyle.Render("H Help")).X(2).Y(m.height - 2)
 
 	return helper.RenderWithTitle(
-		listContent,
+		m.vp.View(),
 		"Collections",
 		m.Width,
 		m.height,
@@ -163,4 +246,17 @@ func (m SidebarModel) View() string {
 		btnLayer,
 		helpLayer,
 	)
+}
+
+func getCollectionOrRequestName(path string, isDir bool) string {
+	base := filepath.Base(path)
+	ext := filepath.Ext(base)
+	nameOnlys := strings.TrimSuffix(base, ext)
+	_, nameOnly, _ := strings.Cut(nameOnlys, "-")
+
+	if isDir {
+		return "Collection " + nameOnly
+	} else {
+		return "Request " + nameOnly
+	}
 }

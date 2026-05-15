@@ -21,15 +21,17 @@ type DialogModel struct {
 	Form    *huh.Form
 	content string
 	Folder  string
+	DType   string
 }
 
 type DialogSubmitMsg struct {
+	FormType string
 	Location string
 	Type     string
 	Name     string
 }
 
-func NewDialog(title, message string, folder string, content any) DialogModel {
+func NewDialog(title, message string, folder string, content any, Dtype string) DialogModel {
 	formTipe = ""
 	formName = ""
 
@@ -37,6 +39,7 @@ func NewDialog(title, message string, folder string, content any) DialogModel {
 		Title:   title,
 		Message: message,
 		Folder:  folder,
+		DType:   Dtype,
 	}
 
 	switch v := content.(type) {
@@ -70,6 +73,7 @@ func (d DialogModel) Update(msg tea.Msg) (DialogModel, tea.Cmd) {
 				Location: d.Folder,
 				Type:     tipe,
 				Name:     name,
+				FormType: d.DType,
 			}
 		}
 	}
@@ -98,4 +102,9 @@ func (d DialogModel) View() string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(styles.BorderActive).
 		Render(content)
+}
+
+func ResetForm(newTipe string) {
+	formTipe = newTipe
+	formName = ""
 }
