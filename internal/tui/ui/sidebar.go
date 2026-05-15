@@ -209,6 +209,9 @@ func (m SidebarModel) Update(msg tea.Msg) (SidebarModel, tea.Cmd) {
 			err := services.DuplicateRequestOrCollection(item.FilePath(), item.IsDir())
 			if err != nil {
 				logger.Error("Failed to duplicate this item : %s", err)
+				return m, func() tea.Msg {
+					return dialog.ShowErrorMsg{Message: "Err " + err.Error()}
+				}
 			}
 
 			return m, components.LoadCollection()

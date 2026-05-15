@@ -8,19 +8,21 @@ import (
 	"restclient/internal/tui/ui"
 	"restclient/internal/tui/ui/components"
 	"restclient/internal/tui/ui/components/dialog"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
 
 type model struct {
-	sidebar  ui.SidebarModel
-	request  ui.RequestModel
-	response ui.ResponseModel
-	dialog   *dialog.DialogModel
-	counter  int
-	height   int
-	width    int
+	sidebar     ui.SidebarModel
+	request     ui.RequestModel
+	response    ui.ResponseModel
+	dialog      *dialog.DialogModel
+	errorDialog *dialog.DialogHelperModel
+	counter     int
+	height      int
+	width       int
 }
 
 func (m model) Init() tea.Cmd {
@@ -67,9 +69,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			if err != nil {
 				logger.Error("Failed to %s %s: %v", msg.FormType, msg.Type, err, msg.Location)
+				errDialog := dialog.NewDialogHelper(50, 1, "Err "+err.Error())
+				m.errorDialog = &errDialog
+				cmds = append(cmds, tea.Tick(3*time.Second, func(t time.Time) tea.Msg {
+					return dialog.DialogHelperCloseMsg{}
+				}))
 			}
 
-			return m, components.LoadCollection()
+			return m, tea.Batch(append(cmds, components.LoadCollection())...)
 
 		case tea.WindowSizeMsg:
 			m.width = msg.Width
@@ -79,6 +86,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		*m.dialog, cmd = m.dialog.Update(msg)
 		cmds = append(cmds, cmd)
 		return m, tea.Batch(cmds...)
+	}
+
+	if m.errorDialog != nil {
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			if msg.String() == "esc" {
+				m.errorDialog = nil
+				return m, nil
+			}
+		case dialog.DialogHelperCloseMsg:
+			m.errorDialog = nil
+			return m, nil
+		}
 	}
 
 	switch msg := msg.(type) {
@@ -123,6 +143,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		)
 		m.dialog = &dialog
 		return m, m.dialog.Init()
+	case dialog.ShowErrorMsg:
+		errDialog := dialog.NewDialogHelper(50, 1, msg.Message)
+		m.errorDialog = &errDialog
+		return m, tea.Tick(3*time.Second, func(t time.Time) tea.Msg {
+			return dialog.DialogHelperCloseMsg{}
+		})
 	case custommodel.SetActivityMSG:
 		m.sidebar.Active = msg.Target == "sidebar"
 		m.request.Active = msg.Target == "request"
@@ -164,6 +190,17 @@ func (m model) View() tea.View {
 		comp := lipgloss.NewCompositor(
 			lipgloss.NewLayer(main),
 			lipgloss.NewLayer(dialogStr).X(x).Y(y).Z(1),
+		)
+		rendered = comp.Render()
+
+	} else if m.errorDialog != nil {
+		errStr := m.errorDialog.View()
+		ew := lipgloss.Width(errStr)
+		x := lipgloss.Width(main) - ew - 2
+
+		comp := lipgloss.NewCompositor(
+			lipgloss.NewLayer(main),
+			lipgloss.NewLayer(errStr).X(x).Y(1).Z(1),
 		)
 		rendered = comp.Render()
 	} else {
