@@ -1,13 +1,16 @@
 package ui
 
 import (
+	"path/filepath"
 	"restclient/internal/tui/helper"
 	"restclient/internal/tui/styles"
 	"restclient/internal/tui/ui/components"
+	"restclient/internal/tui/ui/components/dialog"
 	"strings"
 
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	lv2 "charm.land/lipgloss/v2"
 )
 
@@ -24,8 +27,10 @@ type SidebarModel struct {
 }
 
 type OpenDialogMsg struct {
-	Title   string
-	Message string
+	Title    string
+	Message  string
+	Location string
+	Content  any
 }
 
 func NewSidebar(width, height int) SidebarModel {
@@ -69,7 +74,14 @@ func (m SidebarModel) Update(msg tea.Msg) (SidebarModel, tea.Cmd) {
 
 		if mouse.Y == m.height-3 && mouse.X >= 2 && mouse.X <= 2+btnWidth {
 			return m, func() tea.Msg {
-				return OpenDialogMsg{Title: "Create Request or Collection", Message: ""}
+				d := dialog.DialogModel{}
+				form := d.CreateForm()
+				return OpenDialogMsg{
+					Title:    "Create Request or Collection",
+					Message:  "",
+					Location: "",
+					Content:  form,
+				}
 			}
 		}
 
@@ -95,10 +107,24 @@ func (m SidebarModel) Update(msg tea.Msg) (SidebarModel, tea.Cmd) {
 				}
 			}
 		case "a":
+			location := ""
+			if m.selected < len(flat) {
+				item := flat[m.selected]
+				if item.IsDir() {
+					location = item.FilePath()
+				} else {
+					// file ada di dalam folder, ambil parent path
+					location = filepath.Dir(item.FilePath())
+				}
+			}
 			return m, func() tea.Msg {
+				d := dialog.DialogModel{}
+				form := d.CreateForm()
 				return OpenDialogMsg{
-					Title:   "Create Request or Collection",
-					Message: "",
+					Title:    "Create Request or Collection",
+					Message:  "",
+					Location: location,
+					Content:  form,
 				}
 			}
 		}
@@ -125,6 +151,8 @@ func (m SidebarModel) View() string {
 	}
 
 	btnLayer := lv2.NewLayer(m.button.View()).X(2).Y(m.height - 3)
+	helpStyle := lipgloss.NewStyle().Foreground(styles.TextMuted)
+	helpLayer := lv2.NewLayer(helpStyle.Render("H Help")).X(2).Y(m.height - 2)
 
 	return helper.RenderWithTitle(
 		listContent,
@@ -133,5 +161,6 @@ func (m SidebarModel) View() string {
 		m.height,
 		borderColor,
 		btnLayer,
+		helpLayer,
 	)
 }

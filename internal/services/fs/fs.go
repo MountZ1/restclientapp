@@ -7,6 +7,12 @@ import (
 	"strings"
 )
 
+type Create struct {
+	Location string
+	Type     string
+	Name     string
+}
+
 func Initialize() (string, []os.DirEntry, error) {
 	dataPath := Path()
 
@@ -50,4 +56,25 @@ func GetCollectionItems() []os.DirEntry {
 		}
 	}
 	return filtered
+}
+
+func CreateRequestCollection(request Create) error {
+	base := Path()
+	if request.Location != "" {
+		base = request.Location
+	}
+
+	switch request.Type {
+	case "collection":
+		if err := os.Mkdir(filepath.Join(base, request.Name), 0755); err != nil {
+			return err
+		}
+	case "request":
+		f, err := os.Create(filepath.Join(base, "GET-"+request.Name+".json"))
+		if err != nil {
+			return err
+		}
+		f.Close()
+	}
+	return nil
 }

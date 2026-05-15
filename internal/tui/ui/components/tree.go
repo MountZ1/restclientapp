@@ -18,6 +18,7 @@ type FileItem struct {
 	children []FileItem
 	isDir    bool
 	expanded bool
+	path     string
 }
 type Collection []FileItem
 
@@ -33,6 +34,7 @@ func readDir(path string) ([]FileItem, error) {
 			name:     e.Name(),
 			isDir:    e.IsDir(),
 			expanded: false,
+			path:     filepath.Join(path, e.Name()),
 		}
 		if e.IsDir() {
 			children, err := readDir(filepath.Join(path, e.Name()))
@@ -167,4 +169,8 @@ func (f *FileItem) IsDir() bool {
 
 func (f *FileItem) ToggleExpanded() {
 	f.expanded = !f.expanded
+}
+
+func (f *FileItem) FilePath() string {
+	return f.path
 }

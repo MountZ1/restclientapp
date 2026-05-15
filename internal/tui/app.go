@@ -6,6 +6,7 @@ import (
 	"restclient/internal/tui/custommodel"
 	"restclient/internal/tui/ui"
 	"restclient/internal/tui/ui/components"
+	"restclient/internal/tui/ui/components/dialog"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -15,7 +16,7 @@ type model struct {
 	sidebar  ui.SidebarModel
 	request  ui.RequestModel
 	response ui.ResponseModel
-	dialog   *components.DialogModel
+	dialog   *dialog.DialogModel
 	counter  int
 	height   int
 	width    int
@@ -38,7 +39,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.dialog = nil
 				return m, nil
 			}
-		case components.DialogSubmitMsg:
+		case dialog.DialogSubmitMsg:
 			m.dialog = nil
 			err := services.CreateRequestCollection(services.Create{
 				Location: msg.Location,
@@ -92,7 +93,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 	case ui.OpenDialogMsg:
-		dialog := components.NewDialog(msg.Title, msg.Message)
+		dialog := dialog.NewDialog(
+			msg.Title,
+			msg.Message,
+			msg.Location,
+			msg.Content,
+		)
 		m.dialog = &dialog
 		return m, m.dialog.Init()
 	case custommodel.SetActivityMSG:
@@ -100,7 +106,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.request.Active = msg.Target == "request"
 		m.response.Active = msg.Target == "response"
 
-	case components.DialogSubmitMsg:
+	case dialog.DialogSubmitMsg:
 		m.dialog = nil
 		err := services.CreateRequestCollection(services.Create{
 			Location: msg.Location,
