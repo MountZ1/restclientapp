@@ -38,7 +38,7 @@ func (m RequestModel) View() string {
 	}
 	return helper.RenderWithTitle(
 		"Request Content",
-		" Request ",
+		"Request",
 		m.width,
 		m.height,
 		borderColor,

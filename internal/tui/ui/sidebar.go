@@ -132,6 +132,9 @@ func (m SidebarModel) Update(msg tea.Msg) (SidebarModel, tea.Cmd) {
 					item.ToggleExpanded()
 				}
 			}
+			flat = components.FlattenItems(m.folders)
+			lines := components.BuildLines(m.folders, flat, m.selected, m.Width, m.Active, 0)
+			m.vp.SetContent(strings.Join(lines, "\n"))
 		case "a":
 			location := ""
 			if m.selected < len(flat) {
