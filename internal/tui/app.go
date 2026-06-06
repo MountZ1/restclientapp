@@ -133,6 +133,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.request.OffsetX = m.sidebar.Width
+		m.request.OffsetY = 0
 	case ui.OpenDialogMsg:
 		dialog := dialog.NewDialog(
 			msg.Title,
@@ -216,7 +218,9 @@ func (m model) View() tea.View {
 func Run() error {
 	p := tea.NewProgram(
 		model{
-			sidebar: ui.NewSidebar(30, 20),
+			sidebar:  ui.NewSidebar(30, 20),
+			request:  ui.NewRequest(0, 0),
+			response: ui.NewResponse(0, 0),
 		},
 	)
 	_, err := p.Run()

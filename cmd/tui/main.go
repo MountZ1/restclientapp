@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	services "restclient/internal/services/fs"
 	"restclient/internal/services/logger"
@@ -13,6 +14,7 @@ func main() {
 
 	err := tui.Run()
 	if err != nil {
-		logger.Error("Failed to run the app: %v", err)
+		logger.Error("Failed to run the app: %+v", err)
+		os.Exit(1)
 	}
 }
