@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	services "restclient/internal/services/fs"
 	"restclient/internal/services/logger"
 	"restclient/internal/tui/custommodel"
@@ -133,8 +134,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+
+		sidebarView := m.sidebar.View()
+		actualSidebarWidth := lipgloss.Width(sidebarView)
+
+		fmt.Fprintf(os.Stderr, "terminalWidth=%d sidebarFieldWidth=%d actualSidebarWidth=%d requestWidthUsed=%d\n",
+			msg.Width, m.sidebar.Width, actualSidebarWidth, msg.Width-m.sidebar.Width)
+
 		m.request.OffsetX = m.sidebar.Width
 		m.request.OffsetY = 0
+		m.request = m.request.SetSize(msg.Width-m.sidebar.Width, msg.Height/2)
+
 	case ui.OpenDialogMsg:
 		dialog := dialog.NewDialog(
 			msg.Title,

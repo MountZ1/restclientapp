@@ -5,10 +5,22 @@ import (
 	"restclient/internal/tui/helper"
 	"restclient/internal/tui/styles"
 
+	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	huh "charm.land/huh/v2"
 	lv2 "charm.land/lipgloss/v2"
 )
+
+const (
+	methodBtnWidth = 10
+	sendBtnWidth   = 10
+	gapWidth       = 1
+	urlPlaceholder = "https://api.example.com/endpoint"
+)
+
+var boxStyle = lv2.NewStyle().
+	Border(lv2.RoundedBorder()).
+	Padding(0, 1)
 
 type RequestModel struct {
 	width  int
@@ -19,11 +31,74 @@ type RequestModel struct {
 	methodDropdown *huh.Form
 	dropdownOpen   bool
 
-	urlInput *huh.Form
-	url      string
+	urlInput textinput.Model
 
 	OffsetX int
 	OffsetY int
+}
+
+type SendRequestMsg struct {
+	Method string
+	URL    string
+}
+
+type rowLayout struct {
+	btnStart, btnEnd   int
+	urlStart, urlEnd   int
+	sendStart, sendEnd int
+	rowHeight          int
+}
+
+func (m RequestModel) innerContentWidth() int {
+	w := m.width - 6
+	if w < 1 {
+		w = 1
+	}
+	return w
+}
+
+func (m RequestModel) layout() rowLayout {
+	btnW := lv2.Width(m.methodButtonView())
+	sendW := lv2.Width(m.sendButtonView())
+
+	frame := boxStyle.GetHorizontalFrameSize()
+	minInner := lv2.Width(urlPlaceholder)
+	urlOuterWidth := m.innerContentWidth() - btnW - sendW - gapWidth*2
+	if urlOuterWidth < minInner+frame {
+		urlOuterWidth = minInner + frame
+	}
+
+	btnStart := 0
+	btnEnd := btnStart + btnW
+	urlStart := btnEnd + gapWidth
+	urlEnd := urlStart + urlOuterWidth
+	sendStart := urlEnd + gapWidth
+	sendEnd := sendStart + sendW
+
+	return rowLayout{
+		btnStart: btnStart, btnEnd: btnEnd,
+		urlStart: urlStart, urlEnd: urlEnd,
+		sendStart: sendStart, sendEnd: sendEnd,
+		rowHeight: 3,
+	}
+}
+
+func (m RequestModel) urlInnerWidth() int {
+	l := m.layout()
+	frame := boxStyle.GetHorizontalFrameSize()
+	inner := (l.urlEnd - l.urlStart) - frame
+	if inner < 1 {
+		inner = 1
+	}
+	return inner
+}
+
+func newURLInput() textinput.Model {
+	ti := textinput.New()
+	ti.Placeholder = urlPlaceholder
+	ti.Prompt = "> "
+	ti.SetVirtualCursor(true)
+	return ti
 }
 
 func NewRequest(width, height int) RequestModel {
@@ -31,10 +106,17 @@ func NewRequest(width, height int) RequestModel {
 		width:  width,
 		height: height,
 		method: "GET",
-		url:    "",
 	}
 	m.methodDropdown = newMethodDropdown()
 	m.urlInput = newURLInput()
+	m.urlInput.SetWidth(m.urlInnerWidth())
+	return m
+}
+
+func (m RequestModel) SetSize(width, height int) RequestModel {
+	m.width = width
+	m.height = height
+	m.urlInput.SetWidth(m.urlInnerWidth())
 	return m
 }
 
@@ -56,43 +138,27 @@ func newMethodDropdown() *huh.Form {
 	).WithShowHelp(false)
 }
 
-func newURLInput() *huh.Form {
-	placeholder := ""
-	return huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().
-				Key("url").
-				Value(&placeholder).
-				Placeholder("https://api.example.com/endpoint"),
-		),
-	).WithShowHelp(false)
-}
-
 func (m RequestModel) Init() tea.Cmd {
-	return m.urlInput.Init()
+	return nil
 }
 
 func (m RequestModel) Update(msg tea.Msg) (RequestModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		sidebarWidth := msg.Width / 4
-		m.width = msg.Width - sidebarWidth
-		m.height = msg.Height / 2
-
 	case tea.MouseClickMsg:
 		mouse := msg.Mouse()
 
-		// Koordinat relatif ke panel Request
 		relX := mouse.X - m.OffsetX
 		relY := mouse.Y - m.OffsetY
 
-		btnWidth := lv2.Width(m.methodButtonView())
-		btnHeight := lv2.Height(m.methodButtonView())
+		l := m.layout()
 
-		// Tombol ada di y=1 (setelah border atas), x=1 (setelah border kiri)
-		if relY >= 1 && relY <= btnHeight && relX >= 1 && relX <= btnWidth {
+		inRow := relY >= 0 && relY < l.rowHeight
+
+		switch {
+		case inRow && relX >= l.btnStart && relX < l.btnEnd:
+			m.urlInput.Blur()
 			if m.dropdownOpen {
 				m.dropdownOpen = false
 			} else {
@@ -101,10 +167,31 @@ func (m RequestModel) Update(msg tea.Msg) (RequestModel, tea.Cmd) {
 				cmds = append(cmds, m.methodDropdown.Init())
 			}
 			return m, tea.Batch(cmds...)
-		}
 
-		if m.dropdownOpen {
+		case m.dropdownOpen:
+			m.urlInput.Blur()
 			m.dropdownOpen = false
+			return m, nil
+
+		case inRow && relX >= l.sendStart && relX < l.sendEnd:
+			m.urlInput.Blur()
+			cmds = append(cmds, func() tea.Msg {
+				return SendRequestMsg{Method: m.method, URL: m.urlInput.Value()}
+			})
+			return m, tea.Batch(cmds...)
+
+		case inRow && relX >= l.urlStart && relX < l.urlEnd:
+			focusCmd := m.urlInput.Focus()
+			adjusted := msg
+			adjusted.X = relX - l.urlStart
+			adjusted.Y = 0
+
+			var cmd tea.Cmd
+			m.urlInput, cmd = m.urlInput.Update(adjusted)
+			return m, tea.Batch(focusCmd, cmd)
+
+		default:
+			m.urlInput.Blur()
 			return m, nil
 		}
 
@@ -123,7 +210,6 @@ func (m RequestModel) Update(msg tea.Msg) (RequestModel, tea.Cmd) {
 		cmds = append(cmds, cmd)
 
 		if m.methodDropdown.State == huh.StateCompleted {
-			// baca hasil pilihan lewat GetString
 			if val := m.methodDropdown.GetString("method"); val != "" {
 				m.method = val
 			}
@@ -133,15 +219,9 @@ func (m RequestModel) Update(msg tea.Msg) (RequestModel, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 	}
 
-	form, cmd := m.urlInput.Update(msg)
-	if f, ok := form.(*huh.Form); ok {
-		m.urlInput = f
-	}
+	var cmd tea.Cmd
+	m.urlInput, cmd = m.urlInput.Update(msg)
 	cmds = append(cmds, cmd)
-
-	if val := m.urlInput.GetString("url"); val != "" {
-		m.url = val
-	}
 
 	return m, tea.Batch(cmds...)
 }
@@ -155,32 +235,50 @@ func (m RequestModel) methodButtonView() string {
 	return lv2.NewStyle().
 		Foreground(mc).
 		Bold(true).
+		Width(methodBtnWidth).
 		Padding(0, 1).
 		Border(lv2.RoundedBorder()).
 		Render(m.method + " " + arrow)
 }
 
-func (m RequestModel) View() string {
+func (m RequestModel) sendButtonView() string {
+	return lv2.NewStyle().
+		Foreground(styles.TextNormal).
+		Bold(true).
+		Align(lv2.Center).
+		Width(sendBtnWidth).
+		Padding(0, 1).
+		Border(lv2.RoundedBorder()).
+		BorderForeground(lv2.Color("42")).
+		Render("Send")
+}
+
+func (m RequestModel) urlBoxView() string {
 	borderColor := styles.BorderNormal
-	if m.Active {
+	if m.urlInput.Focused() {
 		borderColor = styles.BorderActive
+	}
+	return boxStyle.
+		BorderForeground(borderColor).
+		Render(m.urlInput.View())
+}
+
+func (m RequestModel) View() string {
+	panelBorderColor := styles.BorderNormal
+	if m.Active {
+		panelBorderColor = styles.BorderActive
 	}
 
 	btn := m.methodButtonView()
-	btnWidth := lv2.Width(btn)
+	send := m.sendButtonView()
+	urlBox := m.urlBoxView()
 
-	urlWidth := m.width - btnWidth - 5
-	urlStyle := lv2.NewStyle().
-		Width(urlWidth).
-		Foreground(styles.TextNormal)
-
-	urlView := urlStyle.Render(m.urlInput.View())
-	row := lv2.JoinHorizontal(lv2.Center, btn, " ", urlView)
+	row := lv2.JoinHorizontal(lv2.Center, btn, " ", urlBox, " ", send)
 
 	var content string
 	if m.dropdownOpen {
 		dropdownView := lv2.NewStyle().
-			Width(btnWidth).
+			Width(lv2.Width(btn)).
 			Render(m.methodDropdown.View())
 		content = lv2.JoinVertical(lv2.Left, row, dropdownView)
 	} else {
@@ -192,7 +290,7 @@ func (m RequestModel) View() string {
 		"Request",
 		m.width,
 		m.height,
-		borderColor,
+		panelBorderColor,
 	)
 }
 
