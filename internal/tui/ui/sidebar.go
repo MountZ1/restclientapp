@@ -39,10 +39,38 @@ type OpenDialogMsg struct {
 	DialogType string
 }
 
+// footerRows is how many rows at the bottom of the panel's interior are
+// reserved for the create-button and the help line, and thus excluded
+// from the scrollable viewport.
+const footerRows = 2
+
+// contentWidth returns the interior width available for this panel's
+// content, given the panel's TOTAL outer width (the same contract
+// RenderWithTitle now uses). Keeping this in one place means there is
+// no hardcoded magic number to keep in sync elsewhere in this file.
+func contentWidth(totalWidth int) int {
+	w := totalWidth - helper.PanelHorizontalFrame()
+	if w < 1 {
+		w = 1
+	}
+	return w
+}
+
+func contentHeight(totalHeight int) int {
+	h := totalHeight - helper.PanelVerticalFrame()
+	if h < 1 {
+		h = 1
+	}
+	return h
+}
+
 func NewSidebar(width, height int) SidebarModel {
+	innerW := contentWidth(width)
+	innerH := contentHeight(height)
+
 	vp := viewport.New()
-	vp.SetHeight(height - 5)
-	vp.SetWidth(width - 4)
+	vp.SetWidth(innerW)
+	vp.SetHeight(innerH - footerRows)
 
 	s := spinner.New()
 	s.Spinner = spinner.Dot
@@ -52,9 +80,8 @@ func NewSidebar(width, height int) SidebarModel {
 		loading: true,
 		Width:   width,
 		height:  height,
-		// refreshButton: components.NewButton("Refresh Collection", width-4, 1),
-		button: components.NewButton("Create Request or Collection", width-4, 1),
-		vp:     vp,
+		button:  components.NewButton("Create Request or Collection", innerW, 1),
+		vp:      vp,
 	}
 }
 
@@ -80,9 +107,13 @@ func (m SidebarModel) Update(msg tea.Msg) (SidebarModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width / 4
 		m.height = msg.Height
-		m.button = components.NewButton(m.button.Text, m.Width-4, 1)
-		m.vp.SetWidth(m.Width - 4)
-		m.vp.SetHeight(m.height - 5)
+
+		innerW := contentWidth(m.Width)
+		innerH := contentHeight(m.height)
+
+		m.button = components.NewButton(m.button.Text, innerW, 1)
+		m.vp.SetWidth(innerW)
+		m.vp.SetHeight(innerH - footerRows)
 		return m, nil
 
 	case tea.MouseClickMsg:
@@ -228,7 +259,9 @@ func (m SidebarModel) Update(msg tea.Msg) (SidebarModel, tea.Cmd) {
 		return m, cmd
 	}
 
-	m.vp, cmd = m.vp.Update(msg)
+	if m.Active {
+		m.vp, cmd = m.vp.Update(msg)
+	}
 
 	return m, cmd
 }

@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"os"
 	services "restclient/internal/services/fs"
 	"restclient/internal/services/logger"
 	"restclient/internal/tui/custommodel"
@@ -135,11 +134,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-		sidebarView := m.sidebar.View()
-		actualSidebarWidth := lipgloss.Width(sidebarView)
+		// sidebarView := m.sidebar.View()
+		// actualSidebarWidth := lipgloss.Width(sidebarView)
 
-		fmt.Fprintf(os.Stderr, "terminalWidth=%d sidebarFieldWidth=%d actualSidebarWidth=%d requestWidthUsed=%d\n",
-			msg.Width, m.sidebar.Width, actualSidebarWidth, msg.Width-m.sidebar.Width)
+		/*fmt.Fprintf(os.Stderr, "terminalWidth=%d sidebarFieldWidth=%d actualSidebarWidth=%d requestWidthUsed=%d\n terminalHeigh=%d\n requestHeigh=%d\n",
+		msg.Width, m.sidebar.Width, actualSidebarWidth, msg.Width-m.sidebar.Width, m.height, m.height/2)*/
 
 		m.request.OffsetX = m.sidebar.Width
 		m.request.OffsetY = 0
