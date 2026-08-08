@@ -95,6 +95,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.errorDialog = nil
 				return m, nil
 			}
+
 		case dialog.DialogHelperCloseMsg:
 			m.errorDialog = nil
 			return m, nil
@@ -106,15 +107,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
+
 		case "up":
 			m.counter++
+
 		case "ctrl+s":
 			return m, func() tea.Msg { return custommodel.SetActivityMSG{Target: "sidebar"} }
+
 		case "ctrl+r":
 			return m, func() tea.Msg { return custommodel.SetActivityMSG{Target: "request"} }
+
 		case "ctrl+d":
 			return m, func() tea.Msg { return custommodel.SetActivityMSG{Target: "response"} }
 		}
+
 	case tea.MouseClickMsg:
 		mouse := msg.Mouse()
 		if mouse.X < m.sidebar.Width {
@@ -130,15 +136,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.request.Active = false
 			m.response.Active = true
 		}
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-
-		// sidebarView := m.sidebar.View()
-		// actualSidebarWidth := lipgloss.Width(sidebarView)
-
-		/*fmt.Fprintf(os.Stderr, "terminalWidth=%d sidebarFieldWidth=%d actualSidebarWidth=%d requestWidthUsed=%d\n terminalHeigh=%d\n requestHeigh=%d\n",
-		msg.Width, m.sidebar.Width, actualSidebarWidth, msg.Width-m.sidebar.Width, m.height, m.height/2)*/
 
 		m.request.OffsetX = m.sidebar.Width
 		m.request.OffsetY = 0
@@ -154,12 +155,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		)
 		m.dialog = &dialog
 		return m, m.dialog.Init()
+
+	case ui.RequestLoadedMsg:
+		m.request = m.request.LoadRequest(msg.Request)
+
 	case dialog.ShowErrorMsg:
 		errDialog := dialog.NewDialogHelper(50, 1, msg.Message)
 		m.errorDialog = &errDialog
 		return m, tea.Tick(3*time.Second, func(t time.Time) tea.Msg {
 			return dialog.DialogHelperCloseMsg{}
 		})
+
 	case custommodel.SetActivityMSG:
 		m.sidebar.Active = msg.Target == "sidebar"
 		m.request.Active = msg.Target == "request"

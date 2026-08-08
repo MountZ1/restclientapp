@@ -13,8 +13,6 @@ import (
 var fieldBoxStyle = lv2.NewStyle().
 	Border(lv2.RoundedBorder())
 
-// fieldFrame is the total horizontal frame (left + right border) added
-// by fieldBoxStyle around a single field's content.
 func fieldFrame() int {
 	return fieldBoxStyle.GetHorizontalFrameSize()
 }
@@ -59,7 +57,6 @@ type KeyValueEditor struct {
 	checkboxWidth int
 	gapWidth      int
 
-	// keyOuterWidth/valueOuterWidth include each field's own border.
 	keyOuterWidth   int
 	valueOuterWidth int
 
@@ -71,6 +68,13 @@ type kvHit struct {
 	col      string
 	isAddRow bool
 	isDelete bool
+}
+
+// KV is a plain key/value pair used to load external data (e.g. parsed
+// from a saved request file) into a KeyValueEditor.
+type KV struct {
+	Key   string
+	Value string
 }
 
 func NewKeyValueEditor() KeyValueEditor {
@@ -105,8 +109,8 @@ func (m KeyValueEditor) SetSize(width, height int) KeyValueEditor {
 	overhead := fieldContentOverhead()
 
 	fixedCols := m.checkboxWidth + m.gapWidth +
-		frame + overhead + m.gapWidth + // key box: border + hidden prompt/cursor overhead
-		frame + overhead + m.gapWidth + // value box: same
+		frame + overhead + m.gapWidth +
+		frame + overhead + m.gapWidth +
 		deleteColWidth
 
 	remaining := width - fixedCols + 2
@@ -140,8 +144,32 @@ func (m KeyValueEditor) SetSize(width, height int) KeyValueEditor {
 	return m
 }
 
-// hitTest resolves a click at (relX, relY), relative to the top-left of
-// the SCROLLED content, into a row index and column.
+// SetPairs replaces all rows with the given pairs. If pairs is empty,
+// a single blank row is kept so the editor still shows an editable row.
+func (m KeyValueEditor) SetPairs(pairs []KV) KeyValueEditor {
+	overhead := fieldContentOverhead()
+	keyWidth := m.keyOuterWidth - fieldFrame() - overhead
+	valueWidth := m.valueOuterWidth - fieldFrame() - overhead
+
+	rows := make([]KVRow, 0, len(pairs))
+	for _, p := range pairs {
+		row := newKVRow()
+		row.Key.SetWidth(keyWidth)
+		row.Value.SetWidth(valueWidth)
+		row.Key.SetValue(p.Key)
+		row.Value.SetValue(p.Value)
+		rows = append(rows, row)
+	}
+
+	if len(rows) == 0 {
+		rows = append(rows, newKVRow())
+	}
+
+	m.Rows = rows
+	m.viewport.SetContent(helper.ClampLines(m.rowsView(), m.viewport.Width(), m.contentLineHeight()))
+	return m
+}
+
 func (m KeyValueEditor) hitTest(relX, relY int) (kvHit, bool) {
 	if relY < 0 || relX < 0 {
 		return kvHit{}, false
@@ -165,7 +193,7 @@ func (m KeyValueEditor) hitTest(relX, relY int) (kvHit, bool) {
 
 		case relX >= keyStart && relX < keyEnd:
 			if rowLocalY == 0 || rowLocalY == rh-1 {
-				return kvHit{}, false // clicked on the field's own border
+				return kvHit{}, false
 			}
 			return kvHit{row: rowIndex, col: "key"}, true
 

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -8,6 +9,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"restclient/internal/collections"
+	"restclient/internal/services/logger"
+	"restclient/internal/types"
 	"strings"
 )
 
@@ -32,7 +35,6 @@ func StartColection() string {
 	var b strings.Builder
 	_, files, err := Initialize()
 	if err != nil {
-		// panic(err)
 		return "something went wrong, please contact customer service"
 	}
 
@@ -62,6 +64,41 @@ func GetCollectionItems() []os.DirEntry {
 	return filtered
 }
 
+func DefaultRequest(name string, method string) types.Request {
+	logger.Info("namanya ", name)
+	return types.Request{
+		Name: name,
+		Request: types.RequestHttp{
+			Method: method,
+			Header: []string{},
+			URL: types.RequestURL{
+				Raw:   "",
+				Host:  []string{},
+				Path:  []string{},
+				Query: []types.QueryRequest{},
+			},
+			Auth: types.RequestAuth{
+				Type: "none",
+			},
+			Body: types.RequestBody{
+				Type: "json",
+			},
+		},
+		Response: []string{},
+	}
+}
+
+func requestNameFromPath(path string) (string, string) {
+	base := filepath.Base(path)
+	ext := filepath.Ext(base)
+	nameOnly := strings.TrimSuffix(base, ext)
+	method, name, found := strings.Cut(nameOnly, "-")
+	if !found {
+		return "GET", nameOnly
+	}
+	return method, name
+}
+
 func CreateRequestCollection(request Create) error {
 	base := Path()
 	if request.Location != "" {
@@ -73,12 +110,19 @@ func CreateRequestCollection(request Create) error {
 		if err := os.Mkdir(filepath.Join(base, request.Name), 0755); err != nil {
 			return err
 		}
+
 	case "request":
-		f, err := os.Create(filepath.Join(base, "GET-"+request.Name+".json"))
+		req := DefaultRequest(request.Name, "GET")
+
+		data, err := json.MarshalIndent(req, "", "  ")
 		if err != nil {
 			return err
 		}
-		f.Close()
+
+		target := filepath.Join(base, "GET-"+request.Name+".json")
+		if err := os.WriteFile(target, data, 0644); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -170,4 +214,38 @@ func generateUniqueName(dir, nameOnly, ext string) string {
 			return candidate
 		}
 	}
+}
+
+func ReadRequestFile(path string, requestChannel chan types.Request, errChannel chan error) {
+	file, err := os.ReadFile(path)
+	if err != nil {
+		errChannel <- fmt.Errorf("failed to read file: %w", err)
+		return
+	}
+
+	if len(file) == 0 {
+		method, name := requestNameFromPath(path)
+		req := DefaultRequest(name, method)
+
+		data, err := json.MarshalIndent(req, "", "  ")
+		if err != nil {
+			errChannel <- fmt.Errorf("failed to build default request: %w", err)
+			return
+		}
+		if err := os.WriteFile(path, data, 0644); err != nil {
+			errChannel <- fmt.Errorf("failed to write default request: %w", err)
+			return
+		}
+
+		requestChannel <- req
+		return
+	}
+
+	var req types.Request
+	if err := json.Unmarshal(file, &req); err != nil {
+		errChannel <- fmt.Errorf("failed to parse file: %w", err)
+		return
+	}
+
+	requestChannel <- req
 }

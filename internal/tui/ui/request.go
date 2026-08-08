@@ -1,10 +1,14 @@
 package ui
 
 import (
+	"encoding/base64"
+	"fmt"
 	"image/color"
 	"restclient/internal/tui/helper"
 	"restclient/internal/tui/styles"
 	"restclient/internal/tui/ui/components"
+	"restclient/internal/types"
+	"strings"
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
@@ -18,22 +22,14 @@ const (
 	gapWidth       = 1
 	urlPlaceholder = "https://api.example.com/endpoint"
 
-	// Layout constants for the vertical sections below the panel
-	// title border. These need to stay in sync with how each section
-	// is actually rendered if its own chrome changes.
-	requestRowHeight = 3 // border + content + border of the method/url/send row
-	urlTabsGap       = 0 // rows between the URL row and the tab bar
+	requestRowHeight = 3
+	urlTabsGap       = 0
 	tabsRowHeight    = 0
-	tabsContentGap   = 0 // rows between the tab bar and its content
+	tabsContentGap   = 0
 
-	// rightMargin keeps every section (the method/url/send row AND the
-	// tab content below it) from touching the panel's own right border.
-	// Shared in one place so row layout and tab content width can never
-	// drift apart again.
 	rightMargin = 4
 )
 
-// requestTab identifies which tab of the request editor is active.
 type requestTab int
 
 const (
@@ -49,8 +45,6 @@ var boxStyle = lv2.NewStyle().
 	Border(lv2.RoundedBorder()).
 	Padding(0, 1)
 
-// dropdownBoxStyle is the border drawn around the floating method
-// dropdown list.
 var dropdownBoxStyle = lv2.NewStyle().
 	Border(lv2.RoundedBorder()).
 	Padding(0, 1)
@@ -88,11 +82,6 @@ type rowLayout struct {
 	rowHeight          int
 }
 
-// innerContentWidth returns the width available for the panel's content,
-// after subtracting the chrome added by helper.RenderWithTitle and the
-// other nested borders. This value was tuned empirically against the
-// actual rendered output, not derived analytically, so if the outer
-// chrome changes this may need to be re-tuned.
 func (m RequestModel) innerContentWidth() int {
 	w := m.width - helper.PanelHorizontalFrame()
 	if w < 1 {
@@ -156,11 +145,6 @@ func (m RequestModel) urlInnerWidth() int {
 	return inner
 }
 
-// verticalLayout returns the Y positions, relative to the top of the
-// panel's content, of the tab bar and the tab content area, plus how
-// tall the content area is allowed to be. This layout never changes
-// based on whether the method dropdown is open; the dropdown is
-// rendered as a floating overlay instead, see View.
 func (m RequestModel) verticalLayout() (tabsY, contentY, contentHeight int) {
 	tabsY = requestRowHeight + urlTabsGap
 	contentY = tabsY + m.tabs.Height() + tabsContentGap
@@ -211,12 +195,112 @@ func (m RequestModel) SetSize(width, height int) RequestModel {
 	m.urlInput.SetWidth(m.urlInnerWidth())
 
 	_, _, contentHeight := m.verticalLayout()
-	contentWidth := m.tabContentWidth() // <- berubah
+	contentWidth := m.tabContentWidth()
 	m.body = m.body.SetSize(contentWidth, contentHeight)
 	m.params = m.params.SetSize(contentWidth, contentHeight)
 	m.headers = m.headers.SetSize(contentWidth, contentHeight)
 	m.auth = m.auth.SetWidth(contentWidth)
 	return m
+}
+
+func (m RequestModel) LoadRequest(req types.Request) RequestModel {
+	m.method = req.Request.Method
+	if m.method == "" {
+		m.method = "GET"
+	}
+	m.urlInput.SetValue(req.Request.URL.Raw)
+
+	headerPairs := make([]components.KV, 0, len(req.Request.Header))
+	for _, h := range req.Request.Header {
+		key, value, _ := strings.Cut(h, ": ")
+		headerPairs = append(headerPairs, components.KV{Key: key, Value: value})
+	}
+	m.headers = m.headers.SetPairs(headerPairs)
+
+	queryPairs := make([]components.KV, 0, len(req.Request.URL.Query))
+	for _, q := range req.Request.URL.Query {
+		queryPairs = append(queryPairs, components.KV{Key: q.Key, Value: fmt.Sprintf("%v", q.Value)})
+	}
+	m.params = m.params.SetPairs(queryPairs)
+
+	authType := req.Request.Auth.Type
+	authToken := req.Request.Auth.Token
+	authUser := req.Request.Auth.Username
+	authPass := req.Request.Auth.Password
+
+	if authType == "" {
+		if typ, value := parseAuthorizationHeader(req.Request.Header); typ != "" {
+			authType = typ
+
+			switch typ {
+			case "bearer":
+				authToken = value
+
+			case "basic":
+				if decoded, err := base64.StdEncoding.DecodeString(value); err == nil {
+					authUser, authPass, _ = strings.Cut(string(decoded), ":")
+				}
+			}
+		}
+	}
+
+	switch authType {
+	case "bearer":
+		m.auth.Type = components.AuthBearer
+		m.auth.Token.SetValue(authToken)
+
+	case "basic":
+		m.auth.Type = components.AuthBasic
+		m.auth.Username.SetValue(authUser)
+		m.auth.Password.SetValue(authPass)
+
+	default:
+		m.auth.Type = components.AuthNone
+	}
+
+	m.body.Type = bodyTypeFromString(req.Request.Body.Type)
+	m.body.Input.SetValue(req.Request.Body.Content)
+
+	return m
+}
+
+// parseAuthorizationHeader looks for a header named "Authorization" and
+// splits it into an auth type ("bearer"/"basic") and its raw value, so
+// files that only stored auth as a plain header still populate the
+// dedicated Authorization tab.
+func parseAuthorizationHeader(headers []string) (string, string) {
+	for _, h := range headers {
+		key, value, found := strings.Cut(h, ": ")
+		if !found {
+			continue
+		}
+		if !strings.EqualFold(key, "Authorization") {
+			continue
+		}
+
+		value = strings.TrimSpace(value)
+		switch {
+		case strings.HasPrefix(value, "Bearer "):
+			return "bearer", strings.TrimPrefix(value, "Bearer ")
+
+		case strings.HasPrefix(value, "Basic "):
+			return "basic", strings.TrimPrefix(value, "Basic ")
+		}
+	}
+	return "", ""
+}
+
+func bodyTypeFromString(s string) components.BodyType {
+	switch s {
+	case "form":
+		return components.BodyFormData
+
+	case "text":
+		return components.BodyText
+
+	default:
+		return components.BodyJSON
+	}
 }
 
 func newMethodDropdown() *huh.Form {
@@ -248,9 +332,6 @@ func (m RequestModel) Init() tea.Cmd {
 	return nil
 }
 
-// blurAllFields removes focus from every focusable field across every
-// tab. Used whenever a click lands somewhere that should not keep any
-// field focused.
 func (m RequestModel) blurAllFields() RequestModel {
 	m.urlInput.Blur()
 	m.body = m.body.Blur()
@@ -271,7 +352,6 @@ func (m RequestModel) Update(msg tea.Msg) (RequestModel, tea.Cmd) {
 		inRow := relY >= 0 && relY < l.rowHeight
 
 		switch {
-		// Method dropdown button.
 		case inRow && relX >= l.btnStart && relX < l.btnEnd:
 			m = m.blurAllFields()
 			if m.dropdownOpen {
@@ -283,13 +363,11 @@ func (m RequestModel) Update(msg tea.Msg) (RequestModel, tea.Cmd) {
 			}
 			return m, tea.Batch(cmds...)
 
-		// Any other click while the dropdown is open just closes it.
 		case m.dropdownOpen:
 			m = m.blurAllFields()
 			m.dropdownOpen = false
 			return m, nil
 
-		// Send button.
 		case inRow && relX >= l.sendStart && relX < l.sendEnd:
 			m = m.blurAllFields()
 			cmds = append(cmds, func() tea.Msg {
@@ -297,7 +375,6 @@ func (m RequestModel) Update(msg tea.Msg) (RequestModel, tea.Cmd) {
 			})
 			return m, tea.Batch(cmds...)
 
-		// URL input.
 		case inRow && relX >= l.urlStart && relX < l.urlEnd:
 			m = m.blurAllFields()
 			focusCmd := m.urlInput.Focus()
@@ -309,7 +386,6 @@ func (m RequestModel) Update(msg tea.Msg) (RequestModel, tea.Cmd) {
 			m.urlInput, cmd = m.urlInput.Update(adjusted)
 			return m, tea.Batch(focusCmd, cmd)
 
-			// Tab bar.
 		case relY == tabsY+m.tabs.FrameOffsetY() && relX >= 0 && relX < lv2.Width(m.tabs.View()):
 			m = m.blurAllFields()
 			tabRelX := relX - m.tabs.FrameOffsetX()
@@ -401,9 +477,6 @@ func (m RequestModel) Update(msg tea.Msg) (RequestModel, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-// bodyContentInset accounts for the border drawn around the body editor
-// by BodyModel, so translated click coordinates land on the correct
-// character inside the textarea rather than on its border.
 const bodyContentInset = 1
 
 func (m RequestModel) methodButtonView() string {
@@ -442,26 +515,26 @@ func (m RequestModel) urlBoxView() string {
 		Render(m.urlInput.View())
 }
 
-// dropdownListView renders the floating list of HTTP methods shown when
-// the method dropdown is open.
 func (m RequestModel) dropdownListView() string {
 	return dropdownBoxStyle.
 		BorderForeground(styles.BorderActive).
 		Render(m.methodDropdown.View())
 }
 
-// tabContentView renders whatever should appear below the tab bar for
-// the currently active tab.
 func (m RequestModel) tabContentView(width, height int) string {
 	switch requestTab(m.tabs.Active) {
 	case tabBody:
 		return m.body.View()
+
 	case tabParams:
 		return m.params.View()
+
 	case tabAuth:
 		return m.auth.View()
+
 	case tabHeaders:
 		return m.headers.View()
+
 	default:
 		return components.Placeholder("", width, height)
 	}
@@ -485,10 +558,6 @@ func (m RequestModel) View() string {
 	tabsRow := m.tabs.View()
 	tabContent := helper.ClampLines(m.tabContentView(contentWidth, contentHeight), contentWidth, contentHeight)
 
-	// Only include a gap block when it's actually >0 rows — Style.Height(0)
-	// on an empty string still renders as 1 line (Height only pads UP,
-	// never truncates down), so a "0-height" gap was silently adding a
-	// real row to the layout that tabsY/contentY never accounted for.
 	parts := []string{row}
 	if urlTabsGap > 0 {
 		parts = append(parts, lv2.NewStyle().Height(urlTabsGap).Render(""))
@@ -524,14 +593,19 @@ func methodColor(method string) color.Color {
 	switch method {
 	case "GET":
 		return styles.ColorGET
+
 	case "POST":
 		return styles.ColorPOST
+
 	case "PUT":
 		return styles.ColorPUT
+
 	case "DELETE":
 		return styles.ColorDELETE
+
 	case "PATCH":
 		return styles.ColorPATCH
+
 	default:
 		return styles.ColorUnknown
 	}

@@ -8,6 +8,7 @@ import (
 	"restclient/internal/tui/styles"
 	"restclient/internal/tui/ui/components"
 	"restclient/internal/tui/ui/components/dialog"
+	"restclient/internal/types"
 	"strings"
 
 	"charm.land/bubbles/v2/spinner"
@@ -18,17 +19,27 @@ import (
 )
 
 type SidebarModel struct {
-	Active        bool
-	folders       []components.FileItem
-	spinner       spinner.Model
-	selected      int
-	loading       bool
-	Width         int
-	height        int
-	refreshButton components.ButtonModel
-	button        components.ButtonModel
-	vp            viewport.Model
-	choiceType    string
+	Active         bool
+	folders        []components.FileItem
+	spinner        spinner.Model
+	selected       int
+	loading        bool
+	Width          int
+	height         int
+	refreshButton  components.ButtonModel
+	button         components.ButtonModel
+	vp             viewport.Model
+	choiceType     string
+	requestChannel chan types.Request
+	errChannel     chan error
+}
+
+type RequestLoadedMsg struct {
+	Request types.Request
+}
+
+type RequestErrorMsg struct {
+	Err error
 }
 
 type OpenDialogMsg struct {
@@ -39,15 +50,8 @@ type OpenDialogMsg struct {
 	DialogType string
 }
 
-// footerRows is how many rows at the bottom of the panel's interior are
-// reserved for the create-button and the help line, and thus excluded
-// from the scrollable viewport.
 const footerRows = 2
 
-// contentWidth returns the interior width available for this panel's
-// content, given the panel's TOTAL outer width (the same contract
-// RenderWithTitle now uses). Keeping this in one place means there is
-// no hardcoded magic number to keep in sync elsewhere in this file.
 func contentWidth(totalWidth int) int {
 	w := totalWidth - helper.PanelHorizontalFrame()
 	if w < 1 {
@@ -64,6 +68,18 @@ func contentHeight(totalHeight int) int {
 	return h
 }
 
+func waitForRequest(reqCh chan types.Request, errCh chan error) tea.Cmd {
+	return func() tea.Msg {
+		select {
+		case req := <-reqCh:
+			return RequestLoadedMsg{Request: req}
+
+		case err := <-errCh:
+			return RequestErrorMsg{Err: err}
+		}
+	}
+}
+
 func NewSidebar(width, height int) SidebarModel {
 	innerW := contentWidth(width)
 	innerH := contentHeight(height)
@@ -76,12 +92,14 @@ func NewSidebar(width, height int) SidebarModel {
 	s.Spinner = spinner.Dot
 
 	return SidebarModel{
-		spinner: s,
-		loading: true,
-		Width:   width,
-		height:  height,
-		button:  components.NewButton("Create Request or Collection", innerW, 1),
-		vp:      vp,
+		spinner:        s,
+		loading:        true,
+		Width:          width,
+		height:         height,
+		button:         components.NewButton("Create Request or Collection", innerW, 1),
+		vp:             vp,
+		requestChannel: make(chan types.Request),
+		errChannel:     make(chan error),
 	}
 }
 
@@ -135,6 +153,15 @@ func (m SidebarModel) Update(msg tea.Msg) (SidebarModel, tea.Cmd) {
 			}
 		}
 
+	case RequestLoadedMsg:
+		return m, nil
+
+	case RequestErrorMsg:
+		logger.Error("Failed to read request file: %s", msg.Err)
+		return m, func() tea.Msg {
+			return dialog.ShowErrorMsg{Message: "Err " + msg.Err.Error()}
+		}
+
 	case tea.KeyMsg:
 		if !m.Active {
 			return m, nil
@@ -156,16 +183,23 @@ func (m SidebarModel) Update(msg tea.Msg) (SidebarModel, tea.Cmd) {
 			lines := components.BuildLines(m.folders, flat, m.selected, m.Width, m.Active, 0)
 			m.vp.SetContent(strings.Join(lines, "\n"))
 			m.vp.SetYOffset(m.selected - m.vp.Height()/2)
+
 		case "enter":
 			if m.selected < len(flat) {
 				item := flat[m.selected]
 				if item.IsDir() {
 					item.ToggleExpanded()
+					flat = components.FlattenItems(m.folders)
+					lines := components.BuildLines(m.folders, flat, m.selected, m.Width, m.Active, 0)
+					m.vp.SetContent(strings.Join(lines, "\n"))
+					return m, nil
 				}
+
+				go services.ReadRequestFile(item.FilePath(), m.requestChannel, m.errChannel)
+				return m, waitForRequest(m.requestChannel, m.errChannel)
 			}
-			flat = components.FlattenItems(m.folders)
-			lines := components.BuildLines(m.folders, flat, m.selected, m.Width, m.Active, 0)
-			m.vp.SetContent(strings.Join(lines, "\n"))
+			return m, nil
+
 		case "a":
 			location := ""
 			if m.selected < len(flat) {
@@ -188,6 +222,7 @@ func (m SidebarModel) Update(msg tea.Msg) (SidebarModel, tea.Cmd) {
 					DialogType: "create",
 				}
 			}
+
 		case "r":
 			var item *components.FileItem
 			if m.selected < len(flat) {
@@ -211,6 +246,7 @@ func (m SidebarModel) Update(msg tea.Msg) (SidebarModel, tea.Cmd) {
 					DialogType: "rename",
 				}
 			}
+
 		case "d":
 			var item *components.FileItem
 			if m.selected < len(flat) {
