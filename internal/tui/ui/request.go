@@ -4,11 +4,12 @@ import (
 	"encoding/base64"
 	"fmt"
 	"image/color"
+	"strings"
+
 	"restclient/internal/tui/helper"
 	"restclient/internal/tui/styles"
 	"restclient/internal/tui/ui/components"
 	"restclient/internal/types"
-	"strings"
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
@@ -264,10 +265,6 @@ func (m RequestModel) LoadRequest(req types.Request) RequestModel {
 	return m
 }
 
-// parseAuthorizationHeader looks for a header named "Authorization" and
-// splits it into an auth type ("bearer"/"basic") and its raw value, so
-// files that only stored auth as a plain header still populate the
-// dedicated Authorization tab.
 func parseAuthorizationHeader(headers []string) (string, string) {
 	for _, h := range headers {
 		key, value, found := strings.Cut(h, ": ")
@@ -323,9 +320,9 @@ func newMethodDropdown() *huh.Form {
 					huh.NewOption("DELETE", "DELETE"),
 					huh.NewOption("PATCH", "PATCH"),
 				).
-				WithWidth(width),
+				WithWidth(width - 10),
 		),
-	).WithShowHelp(false)
+	).WithShowHelp(false).WithWidth(methodBtnWidth)
 }
 
 func (m RequestModel) Init() tea.Cmd {
