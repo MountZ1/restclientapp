@@ -20,7 +20,7 @@ type App struct {
 }
 
 func Run() {
-	gui.SetTheme(gui.ThemeLight)
+	gui.SetTheme(gui.ThemeDark.WithBorders(true).WithPadding(false))
 
 	app := &App{
 		DockRoot: initialLayout(),
@@ -34,7 +34,7 @@ func Run() {
 	w := gui.NewWindow(gui.WindowCfg{
 		State:  app,
 		Title:  "restclient",
-		Width:  1100,
+		Width:  1200,
 		Height: 650,
 		OnInit: func(w *gui.Window) { w.SetView(mainView) },
 	})
@@ -65,21 +65,9 @@ func mainView(w *gui.Window) gui.View {
 				ID:   "main-dock",
 				Root: app.DockRoot,
 				Panels: []gui.DockPanelDef{
-					{
-						ID:      "sidebar",
-						Label:   "Collections",
-						Content: []gui.View{sidebarView(w)},
-					},
-					{
-						ID:      "request",
-						Label:   "Request",
-						Content: []gui.View{requestView(w)},
-					},
-					{
-						ID:      "response",
-						Label:   "Response",
-						Content: []gui.View{responseView(w)},
-					},
+					{ID: "sidebar", Content: []gui.View{sidebarView(w)}},
+					{ID: "request", Content: []gui.View{requestView(w)}},
+					{ID: "response", Content: []gui.View{responseView(w)}},
 				},
 				OnLayoutChange: func(root *gui.DockNode, ctx gui.EventCtx) {
 					gui.State[App](ctx.Window).DockRoot = root
@@ -89,69 +77,6 @@ func mainView(w *gui.Window) gui.View {
 					a.DockRoot = gui.DockTreeSelectPanel(a.DockRoot, groupID, panelID)
 				},
 			}),
-		},
-	})
-}
-
-func sidebarView(w *gui.Window) gui.View {
-	app := gui.State[App](w)
-	t := gui.CurrentTheme()
-
-	items := make([]gui.View, 0, len(app.SavedRequests)+1)
-	items = append(items, gui.Label("Saved requests", t.B4))
-
-	for _, req := range app.SavedRequests {
-		req := req
-		label := req.Method + "  " + req.Name
-
-		bg := t.ColorInterior
-		if req.ID == app.SelectedID {
-			bg = t.ColorSelect
-		}
-
-		items = append(items, gui.Column(gui.ContainerCfg{
-			ID:      "sidebar-item-" + req.ID,
-			Sizing:  gui.FillFit,
-			Padding: gui.NewPadding(6, 8, 6, 8),
-			Color:   bg,
-			Content: []gui.View{
-				gui.Label(label, t.N3),
-			},
-			OnClick: func(ctx gui.EventCtx) {
-				gui.State[App](ctx.Window).SelectedID = req.ID
-			},
-		}))
-	}
-
-	return gui.Column(gui.ContainerCfg{
-		Sizing:  gui.FillFill,
-		Padding: gui.PadAll(8),
-		Spacing: gui.SomeF(4),
-		Content: items,
-	})
-}
-
-func requestView(w *gui.Window) gui.View {
-	t := gui.CurrentTheme()
-	return gui.Column(gui.ContainerCfg{
-		Sizing:  gui.FillFill,
-		Padding: gui.PadAll(8),
-		Content: []gui.View{
-			gui.Label("Request panel", t.B3),
-			gui.TextButton("send-btn", "Send", func(ctx gui.EventCtx) {
-				gui.State[App](ctx.Window).Clicks++
-			}),
-		},
-	})
-}
-
-func responseView(w *gui.Window) gui.View {
-	t := gui.CurrentTheme()
-	return gui.Column(gui.ContainerCfg{
-		Sizing:  gui.FillFill,
-		Padding: gui.PadAll(8),
-		Content: []gui.View{
-			gui.Label("Response panel", t.B3),
 		},
 	})
 }
