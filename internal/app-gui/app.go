@@ -1,34 +1,49 @@
 package appgui
 
 import (
+	"os"
+
+	services "restclient/internal/services/fs"
+
 	"github.com/go-gui-org/go-gui/gui"
 	"github.com/go-gui-org/go-gui/gui/backend"
 )
 
-type SavedRequest struct {
+type RequestTab struct {
 	ID     string
-	Name   string
+	Title  string
 	Method string
 }
 
 type App struct {
-	Clicks   int
-	DockRoot *gui.DockNode
+	Clicks int
 
-	SavedRequests []SavedRequest
+	SavedRequests []os.DirEntry
+	RequestTree   []gui.TreeNodeCfg
+	RequestLookup map[string]RequestTab
 	SelectedID    string
+
+	OpenTabs             []RequestTab
+	ActiveTabID          string
+	RequestDock          *gui.DockNode
+	RequestResponseRatio float32
 }
 
 func Run() {
 	gui.SetTheme(gui.ThemeDark.WithBorders(true).WithPadding(false))
+	gui.Debug(true)
+
+	basePath := services.Path()
+	savedRequests := services.GetCollectionItems()
+
+	lookup := make(map[string]RequestTab)
+	tree := buildRequestTree(basePath, "root", savedRequests, lookup)
 
 	app := &App{
-		DockRoot: initialLayout(),
-		SavedRequests: []SavedRequest{
-			{ID: "req-1", Name: "Get users", Method: "GET"},
-			{ID: "req-2", Name: "Create user", Method: "POST"},
-			{ID: "req-3", Name: "Delete user", Method: "DELETE"},
-		},
+		SavedRequests:        savedRequests,
+		RequestTree:          tree,
+		RequestLookup:        lookup,
+		RequestResponseRatio: 0.5,
 	}
 
 	w := gui.NewWindow(gui.WindowCfg{
@@ -42,41 +57,72 @@ func Run() {
 	backend.Run(w)
 }
 
-func initialLayout() *gui.DockNode {
-	return gui.DockSplit("root", gui.DockSplitHorizontal, 0.25,
-		gui.DockPanelGroup("left", []string{"sidebar"}, "sidebar"),
-		gui.DockSplit("right", gui.DockSplitVertical, 0.5,
-			gui.DockPanelGroup("top", []string{"request"}, "request"),
-			gui.DockPanelGroup("bottom", []string{"response"}, "response"),
-		),
-	)
+func openRequestTab(w *gui.Window, id string) {
+	a := gui.State[App](w)
+
+	tab, ok := a.RequestLookup[id]
+	if !ok {
+		return
+	}
+
+	for _, t := range a.OpenTabs {
+		if t.ID == id {
+			a.ActiveTabID = id
+			syncRequestDock(a)
+			return
+		}
+	}
+
+	a.OpenTabs = append(a.OpenTabs, tab)
+	a.ActiveTabID = id
+	syncRequestDock(a)
+}
+
+func syncRequestDock(a *App) {
+	if len(a.OpenTabs) == 0 {
+		a.RequestDock = nil
+		return
+	}
+	ids := make([]string, len(a.OpenTabs))
+	for i, t := range a.OpenTabs {
+		ids[i] = t.ID
+	}
+	a.RequestDock = gui.DockPanelGroup("request-tabs", ids, a.ActiveTabID)
 }
 
 func mainView(w *gui.Window) gui.View {
-	app := gui.State[App](w)
 	ww, wh := w.WindowSize()
 
-	return gui.Column(gui.ContainerCfg{
+	return gui.Row(gui.ContainerCfg{
 		Width:  float32(ww),
 		Height: float32(wh),
 		Sizing: gui.FixedFixed,
 		Content: []gui.View{
-			gui.DockLayout(gui.DockLayoutCfg{
-				ID:   "main-dock",
-				Root: app.DockRoot,
-				Panels: []gui.DockPanelDef{
-					{ID: "sidebar", Content: []gui.View{sidebarView(w)}},
-					{ID: "request", Content: []gui.View{requestView(w)}},
-					{ID: "response", Content: []gui.View{responseView(w)}},
-				},
-				OnLayoutChange: func(root *gui.DockNode, ctx gui.EventCtx) {
-					gui.State[App](ctx.Window).DockRoot = root
-				},
-				OnPanelSelect: func(groupID, panelID string, ctx gui.EventCtx) {
-					a := gui.State[App](ctx.Window)
-					a.DockRoot = gui.DockTreeSelectPanel(a.DockRoot, groupID, panelID)
-				},
-			}),
+			sidebarView(w),
+			mainContentView(w),
+		},
+	})
+}
+
+func mainContentView(w *gui.Window) gui.View {
+	app := gui.State[App](w)
+
+	return gui.Splitter(gui.SplitterCfg{
+		ID:          "request-response-split",
+		Focusable:   true,
+		Orientation: gui.SplitterVertical,
+		Sizing:      gui.FillFill,
+		Ratio:       gui.SomeF(app.RequestResponseRatio),
+		OnChange: func(ratio float32, collapsed gui.SplitterCollapsed, ctx gui.EventCtx) {
+			gui.State[App](ctx.Window).RequestResponseRatio = ratio
+		},
+		First: gui.SplitterPaneCfg{
+			MinSize: 100,
+			Content: []gui.View{requestAreaView(w)},
+		},
+		Second: gui.SplitterPaneCfg{
+			MinSize: 100,
+			Content: []gui.View{responseView(w)},
 		},
 	})
 }
