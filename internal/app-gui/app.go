@@ -1,48 +1,17 @@
 package appgui
 
 import (
-	"os"
-
-	services "restclient/internal/services/fs"
+	"restclient/internal/types"
 
 	"github.com/go-gui-org/go-gui/gui"
 	"github.com/go-gui-org/go-gui/gui/backend"
 )
 
-type RequestTab struct {
-	ID     string
-	Title  string
-	Method string
-}
-
-type App struct {
-	Clicks int
-
-	SavedRequests []os.DirEntry
-	RequestTree   []gui.TreeNodeCfg
-	RequestLookup map[string]RequestTab
-	SelectedID    string
-
-	OpenTabs             []RequestTab
-	ActiveTabID          string
-	RequestDock          *gui.DockNode
-	RequestResponseRatio float32
-}
-
 func Run() {
 	gui.SetTheme(gui.ThemeDark.WithBorders(true).WithPadding(false))
 	gui.Debug(true)
 
-	basePath := services.Path()
-	savedRequests := services.GetCollectionItems()
-
-	lookup := make(map[string]RequestTab)
-	tree := buildRequestTree(basePath, "root", savedRequests, lookup)
-
-	app := &App{
-		SavedRequests:        savedRequests,
-		RequestTree:          tree,
-		RequestLookup:        lookup,
+	app := &types.App{
 		RequestResponseRatio: 0.5,
 	}
 
@@ -58,7 +27,7 @@ func Run() {
 }
 
 func openRequestTab(w *gui.Window, id string) {
-	a := gui.State[App](w)
+	a := gui.State[types.App](w)
 
 	tab, ok := a.RequestLookup[id]
 	if !ok {
@@ -78,7 +47,7 @@ func openRequestTab(w *gui.Window, id string) {
 	syncRequestDock(a)
 }
 
-func syncRequestDock(a *App) {
+func syncRequestDock(a *types.App) {
 	if len(a.OpenTabs) == 0 {
 		a.RequestDock = nil
 		return
@@ -105,7 +74,7 @@ func mainView(w *gui.Window) gui.View {
 }
 
 func mainContentView(w *gui.Window) gui.View {
-	app := gui.State[App](w)
+	app := gui.State[types.App](w)
 
 	return gui.Splitter(gui.SplitterCfg{
 		ID:          "request-response-split",
@@ -114,7 +83,7 @@ func mainContentView(w *gui.Window) gui.View {
 		Sizing:      gui.FillFill,
 		Ratio:       gui.SomeF(app.RequestResponseRatio),
 		OnChange: func(ratio float32, collapsed gui.SplitterCollapsed, ctx gui.EventCtx) {
-			gui.State[App](ctx.Window).RequestResponseRatio = ratio
+			gui.State[types.App](ctx.Window).RequestResponseRatio = ratio
 		},
 		First: gui.SplitterPaneCfg{
 			MinSize: 100,

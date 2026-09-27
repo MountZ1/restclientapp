@@ -1,9 +1,13 @@
 package appgui
 
-import "github.com/go-gui-org/go-gui/gui"
+import (
+	"restclient/internal/types"
+
+	"github.com/go-gui-org/go-gui/gui"
+)
 
 func requestAreaView(w *gui.Window) gui.View {
-	app := gui.State[App](w)
+	app := gui.State[types.App](w)
 
 	if app.RequestDock == nil || len(app.OpenTabs) == 0 {
 		return emptyRequestAreaView()
@@ -24,10 +28,10 @@ func requestAreaView(w *gui.Window) gui.View {
 		Root:   app.RequestDock,
 		Panels: panels,
 		OnLayoutChange: func(root *gui.DockNode, ctx gui.EventCtx) {
-			gui.State[App](ctx.Window).RequestDock = root
+			gui.State[types.App](ctx.Window).RequestDock = root
 		},
 		OnPanelSelect: func(groupID, panelID string, ctx gui.EventCtx) {
-			gui.State[App](ctx.Window).ActiveTabID = panelID
+			gui.State[types.App](ctx.Window).ActiveTabID = panelID
 		},
 	})
 }
@@ -44,7 +48,7 @@ func emptyRequestAreaView() gui.View {
 	})
 }
 
-func requestTabView(w *gui.Window, tab RequestTab) gui.View {
+func requestTabView(w *gui.Window, tab types.RequestTab) gui.View {
 	return gui.Column(gui.ContainerCfg{
 		Sizing:      gui.FillFill,
 		Padding:     gui.PadAll(8),
@@ -53,7 +57,7 @@ func requestTabView(w *gui.Window, tab RequestTab) gui.View {
 		Content: []gui.View{
 			gui.Label(tab.Method+"  "+tab.Title, gui.TextStyle{Size: 13}.Bold()),
 			gui.TextButton("send-btn-"+tab.ID, "Send", func(ctx gui.EventCtx) {
-				gui.State[App](ctx.Window).Clicks++
+				gui.State[types.App](ctx.Window).Clicks++
 			}),
 		},
 	})

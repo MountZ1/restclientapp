@@ -8,17 +8,12 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
+
 	"restclient/internal/collections"
 	"restclient/internal/services/logger"
 	"restclient/internal/types"
-	"strings"
 )
-
-type Create struct {
-	Location string
-	Type     string
-	Name     string
-}
 
 func Initialize() (string, []os.DirEntry, error) {
 	dataPath := Path()
@@ -99,7 +94,7 @@ func requestNameFromPath(path string) (string, string) {
 	return method, name
 }
 
-func CreateRequestCollection(request Create) error {
+func CreateRequestCollection(request types.Create) error {
 	base := Path()
 	if request.Location != "" {
 		base = request.Location
@@ -107,7 +102,7 @@ func CreateRequestCollection(request Create) error {
 
 	switch request.Type {
 	case "collection":
-		if err := os.Mkdir(filepath.Join(base, request.Name), 0755); err != nil {
+		if err := os.Mkdir(filepath.Join(base, request.Name), 0o755); err != nil {
 			return err
 		}
 
@@ -120,7 +115,7 @@ func CreateRequestCollection(request Create) error {
 		}
 
 		target := filepath.Join(base, "GET-"+request.Name+".json")
-		if err := os.WriteFile(target, data, 0644); err != nil {
+		if err := os.WriteFile(target, data, 0o644); err != nil {
 			return err
 		}
 	}
@@ -197,7 +192,7 @@ func duplicateCollection(src string) error {
 		rel, _ := filepath.Rel(src, path)
 		target := filepath.Join(dst, rel)
 		if d.IsDir() {
-			return os.MkdirAll(target, 0755)
+			return os.MkdirAll(target, 0o755)
 		}
 		return duplicateRequest(path, target)
 	})
@@ -232,7 +227,7 @@ func ReadRequestFile(path string, requestChannel chan types.Request, errChannel 
 			errChannel <- fmt.Errorf("failed to build default request: %w", err)
 			return
 		}
-		if err := os.WriteFile(path, data, 0644); err != nil {
+		if err := os.WriteFile(path, data, 0o644); err != nil {
 			errChannel <- fmt.Errorf("failed to write default request: %w", err)
 			return
 		}
