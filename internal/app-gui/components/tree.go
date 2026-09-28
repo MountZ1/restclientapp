@@ -12,10 +12,10 @@ import (
 )
 
 const (
-	treeTextSize = 16
-	treeIconSize = 16
-	treeIndent   = float32(16)
-	iconColWidth = float32(44)
+	treeTextSize = 14
+	treeIconSize = 14
+	treeIndent   = float32(12)
+	iconColWidth = float32(38)
 )
 
 var methodAbbrev = map[string]string{
@@ -195,13 +195,13 @@ func treeRow(w *gui.Window, p treeRowParams) gui.View {
 		gui.Text(gui.TextCfg{Text: p.Text, TextStyle: p.TextStyle, Sizing: gui.FillFit}),
 		gui.Button(gui.ButtonCfg{
 			ID:     "menu-btn-" + p.ID,
-			Width:  36,
-			Height: 3.2,
+			Width:  18,
+			Height: 1.8,
 			Radius: gui.SomeF(4),
 			Content: []gui.View{
 				gui.Text(gui.TextCfg{
 					Text:      "...",
-					TextStyle: gui.TextStyle{Size: 20, Color: p.TextStyle.Color},
+					TextStyle: gui.TextStyle{Size: 14, Color: p.TextStyle.Color},
 				}),
 			},
 			OnClick: toggleMenu,
