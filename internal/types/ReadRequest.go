@@ -20,8 +20,8 @@ type RequestAuth struct {
 }
 
 type RequestBody struct {
-	Type    string
-	Content string
+	Type    string `json:"type"`
+	Content string `json:"content"`
 }
 
 type RequestHttp struct {

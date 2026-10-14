@@ -29,22 +29,22 @@ func Run() {
 func openRequestTab(w *gui.Window, id string) {
 	a := gui.State[types.App](w)
 
-	tab, ok := a.RequestLookup[id]
-	if !ok {
-		return
-	}
-
 	for _, t := range a.OpenTabs {
 		if t.ID == id {
 			a.ActiveTabID = id
-			syncRequestDock(a)
+			a.RequestDock = selectDockPanel(a.RequestDock, id)
 			return
 		}
 	}
 
-	a.OpenTabs = append(a.OpenTabs, tab)
+	meta, ok := a.RequestLookup[id]
+	if !ok {
+		return
+	}
+
+	a.OpenTabs = append(a.OpenTabs, loadTab(meta))
+	a.RequestDock = addDockPanel(a.RequestDock, a.ActiveTabID, id)
 	a.ActiveTabID = id
-	syncRequestDock(a)
 }
 
 func syncRequestDock(a *types.App) {
